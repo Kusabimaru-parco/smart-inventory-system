@@ -2,6 +2,8 @@
 session_start();
 include "db_conn.php";
 
+
+
 // Security Check
 if (!isset($_SESSION['user_id'])) {
     header("Location: index.php");
@@ -10,6 +12,32 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 $role = $_SESSION['role'];
+
+// --- GET USER POINTS (For Student View) ---
+$my_points = 0;
+$bar_color = "success";
+$bar_width = "0%";
+
+if ($role == 'student') {
+    $p_sql = "SELECT penalty_points FROM users WHERE user_id = '$user_id'";
+    $p_res = mysqli_query($conn, $p_sql);
+    $p_data = mysqli_fetch_assoc($p_res);
+    $my_points = $p_data['penalty_points'];
+
+    // Logic: Ban limit is 60 points
+    $max_points = 60;
+    $percentage = ($my_points / $max_points) * 100;
+    $bar_width = $percentage . "%";
+
+    // Dynamic Color Change
+    if ($my_points >= 50) {
+        $bar_color = "danger"; // Red (Critical)
+    } elseif ($my_points >= 30) {
+        $bar_color = "warning"; // Yellow (Caution)
+    } else {
+        $bar_color = "success"; // Green (Safe)
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -31,11 +59,12 @@ $role = $_SESSION['role'];
 
     <div class="container mt-4">
 
-        <?php if ($role == 'admin') { ?>
+        <?php if ($role == 'admin') { ?> <!-- Admin view -->
             
-            <div class="row mb-4">
+            <div class="row g-4 mb-4">
+                
                 <div class="col-md-4">
-                    <div class="card text-center shadow-sm">
+                    <div class="card text-center shadow-sm h-100">
                         <div class="card-body">
                             <h5 class="card-title text-primary"><i class="bi bi-upc-scan"></i> Scanner</h5>
                             <p class="card-text">Issue or Return tools via barcode.</p>
@@ -43,8 +72,9 @@ $role = $_SESSION['role'];
                         </div>
                     </div>
                 </div>
+
                 <div class="col-md-4">
-                    <div class="card text-center shadow-sm">
+                    <div class="card text-center shadow-sm h-100">
                         <div class="card-body">
                             <h5 class="card-title text-warning"><i class="bi bi-envelope"></i> Requests</h5>
                             <p class="card-text">Approve student borrow requests.</p>
@@ -52,8 +82,9 @@ $role = $_SESSION['role'];
                         </div>
                     </div>
                 </div>
+
                 <div class="col-md-4">
-                    <div class="card text-center shadow-sm">
+                    <div class="card text-center shadow-sm h-100">
                         <div class="card-body">
                             <h5 class="card-title text-success"><i class="bi bi-tools"></i> Inventory</h5>
                             <p class="card-text">Add or edit tool details.</p>
@@ -61,9 +92,37 @@ $role = $_SESSION['role'];
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="card shadow-sm mb-4">
+                <div class="col-md-4">
+                    <div class="card text-center shadow-sm h-100">
+                        <div class="card-body">
+                            <h5 class="card-title text-danger"><i class="bi bi-graph-up"></i> Reports</h5>
+                            <p class="card-text">View utilization analytics.</p>
+                            <a href="reports.php" class="btn btn-danger w-100">View Analytics</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card text-center shadow-sm h-100">
+                        <div class="card-body">
+                            <h5 class="card-title text-dark"><i class="bi bi-people-fill"></i> Users</h5>
+                            <p class="card-text">Manage bans and penalties.</p>
+                            <a href="users.php" class="btn btn-outline-dark w-100">Manage Users</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mt-3"> <!-- Only temporary for presentation -->
+                    <div class="card text-center shadow-sm h-100 border-warning">
+                        <div class="card-body">
+                            <h5 class="card-title text-warning"><i class="bi bi-bell"></i> Automation</h5>
+                            <p class="card-text">Trigger email reminders manually.</p>
+                            <a href="cron_email.php" target="_blank" class="btn btn-warning w-100">Run Reminders</a>
+                        </div>
+                    </div>
+                </div>
+
+            </div> <div class="card shadow-sm mb-4">
                 <div class="card-header bg-info text-white">
                     <h5 class="mb-0"><i class="bi bi-person-badge"></i> Currently Borrowed Tools (Active)</h5>
                 </div>
@@ -136,7 +195,7 @@ $role = $_SESSION['role'];
                                     JOIN users u ON tr.user_id = u.user_id
                                     JOIN tools t ON tr.tool_id = t.tool_id
                                     WHERE (tr.status = 'Returned' OR tr.status = 'Borrowed') 
-                                    ORDER BY tr.transaction_id DESC LIMIT 10"; // Showing last 10 for neatness
+                                    ORDER BY tr.transaction_id DESC LIMIT 10"; 
                             
                             $result = mysqli_query($conn, $sql);
                             if (mysqli_num_rows($result) > 0) {
@@ -148,7 +207,19 @@ $role = $_SESSION['role'];
                                     <td><span class="badge bg-<?php echo $color; ?>"><?php echo $type; ?></span></td>
                                     <td><?php echo $row['tool_name']; ?></td>
                                     <td><?php echo $row['full_name']; ?></td>
-                                    <td><?php echo date('h:i A'); // Or use actual timestamp col ?></td>
+                                    <?php 
+                                    // Determine which date to show
+                                    $time_string = "";
+                                    if ($row['status'] == 'Returned' && !empty($row['actual_return_date'])) {
+                                    $time_string = date('M d, h:i A', strtotime($row['actual_return_date']));
+                                    } else {
+                                    // Fallback if no specific return timestamp (e.g. for Borrowed items)
+                                    // Assuming 'date_requested' or 'borrow_date' is available. 
+                                    // Ideally, change your SQL query to select 'date_requested' as well.
+                                    $time_string = "Today"; 
+                                    }
+                                    ?>
+                                    <td><?php echo $time_string; ?></td>
                                 </tr>
                             <?php 
                                 }
@@ -156,10 +227,39 @@ $role = $_SESSION['role'];
                             ?>
                         </tbody>
                     </table>
+                    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-clock-history"></i> Today's Activity</h5>
+                        <a href="admin_history.php" target="_blank" class="btn btn-sm btn-light text-secondary fw-bold">View Full History</a>
+                    </div>
                 </div>
             </div>
 
-        <?php } else { ?>
+        <?php } else { ?> <!-- Student View -->
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="card-title mb-0"><i class="bi bi-shield-check"></i> Account Standing</h5>
+                        <span class="badge bg-<?php echo $bar_color; ?> fs-6">
+                            <?php echo $my_points; ?> / 60 Penalty Points
+                        </span>
+                    </div>
+
+                    <div class="progress" style="height: 25px; background-color: #e9ecef;">
+                        <div class="progress-bar bg-<?php echo $bar_color; ?> progress-bar-striped progress-bar-animated" 
+                            role="progressbar" 
+                            style="width: <?php echo $bar_width; ?>; font-weight: bold;">
+                            <?php echo ($my_points > 5) ? $my_points . ' Pts' : ''; ?>
+                        </div>
+                    </div>
+
+                    <div class="mt-2 text-muted small d-flex justify-content-between">
+                        <span>🟢 0-29 (Safe)</span>
+                        <span>🟡 30-49 (Warning)</span>
+                        <span>🔴 60 (Account Restricted)</span>
+                    </div>
+                    </div>
+            </div>
 
             <div class="row">
                 <div class="col-md-4 mb-4">
