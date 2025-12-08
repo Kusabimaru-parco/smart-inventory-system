@@ -39,6 +39,8 @@
             </div>
         </form>
     </div>
-
+    <script>
+        sessionStorage.removeItem('jane_welcome_played');
+    </script>
 </body>
 </html>
