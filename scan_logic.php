@@ -42,7 +42,7 @@ if (isset($_POST['barcode'])) {
     if ($current_status == 'Approved') {
         
         // Update Transaction
-        mysqli_query($conn, "UPDATE transactions SET status='Borrowed' WHERE transaction_id='$trans_id'");
+        mysqli_query($conn, "UPDATE transactions SET status='Borrowed', actual_borrow_date=NOW() WHERE transaction_id='$trans_id'");
         // Update Tool Inventory Status
         mysqli_query($conn, "UPDATE tools SET status='Borrowed' WHERE tool_id='$tool_id'");
 
@@ -61,18 +61,34 @@ if (isset($_POST['barcode'])) {
         $due_date = $trans['return_date'];
         $today = date('Y-m-d');
 
+        // Only calculate penalty if today is strictly GREATER than due date
         if ($today > $due_date) {
-            // Calculate Days Late
+            // 1. Calculate the difference in seconds
             $diff = strtotime($today) - strtotime($due_date);
-            $days_late = round($diff / (60 * 60 * 24));
-            $points = $days_late * 5; // e.g., 5 points per day
+    
+            // 2. Convert to days
+            $days_late = ceil($diff / (60 * 60 * 24));
+    
+            // 3. Calculate Points (5 points per day)
+            $points = $days_late * 5; 
 
-            // 1. Add Penalty Record
+            // 4. Add Penalty Record
+            // FIX: Changed 'points_added' to 'points' to match your database table
             $reason = "Late Return ($days_late days)";
-            mysqli_query($conn, "INSERT INTO penalties (user_id, points_added, reason) VALUES ('$user_id', '$points', '$reason')");
+            $sql_penalty = "INSERT INTO penalties (user_id, points, reason) VALUES ('$user_id', '$points', '$reason')";
+            if (!mysqli_query($conn, $sql_penalty)) {
+                 // Debugging help if it fails again
+                 header("Location: scan_page.php?error=Penalty Error: " . mysqli_error($conn));
+                 exit();
+            }
 
-            // 2. Add Points to User Profile
-            mysqli_query($conn, "UPDATE users SET penalty_points = penalty_points + $points WHERE user_id='$user_id'");
+            // 5. Update User Profile
+            $sql_update = "UPDATE users SET penalty_points = penalty_points + $points WHERE user_id='$user_id'";
+            mysqli_query($conn, $sql_update);
+
+            // 6. Check for Ban (Immediate restriction)
+            $sql_check_ban = "UPDATE users SET account_status = 'restricted' WHERE user_id='$user_id' AND penalty_points >= 60";
+            mysqli_query($conn, $sql_check_ban);
 
             $msg = "LATE RETURN! $days_late days late. $points Penalty Points added.";
         }

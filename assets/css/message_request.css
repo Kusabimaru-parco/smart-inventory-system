@@ -1,0 +1,11 @@
+
+/* Glowing Animation */
+@keyframes pulse-red {
+    0% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(255, 193, 7, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 193, 7, 0); }
+}
+.glow-warning {
+    animation: pulse-red 2s infinite;
+    border: 2px solid #ffc107 !important;
+}

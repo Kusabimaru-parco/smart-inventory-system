@@ -18,6 +18,10 @@
             <div class="alert alert-danger text-center"><?php echo $_GET['error']; ?></div>
         <?php } ?>
 
+        <?php if (isset($_GET['success'])) { ?>
+            <div class="alert alert-success text-center"><?php echo $_GET['success']; ?></div>
+        <?php } ?>
+
         <form action="auth.php" method="POST">
             <div class="mb-3">
                 <label>ID Number</label>
@@ -28,8 +32,15 @@
                 <input type="password" name="password" class="form-control" placeholder="******" required>
             </div>
             <button type="submit" class="btn btn-primary w-100">Login</button>
+    
+            <div class="text-center mt-3">
+                <span class="text-muted">Don't have an account? </span>
+                <a href="register.php" class="text-decoration-none fw-bold">Register Here</a>
+            </div>
         </form>
     </div>
-
+    <script>
+        sessionStorage.removeItem('jane_welcome_played');
+    </script>
 </body>
 </html>
