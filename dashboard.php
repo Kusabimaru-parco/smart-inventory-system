@@ -72,6 +72,13 @@ if ($role == 'student') {
 
     <div class="container mt-4">
 
+        <?php if (isset($_GET['msg'])) { ?>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <?php echo htmlspecialchars($_GET['msg']); ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php } ?>
+        
         <?php if ($role == 'admin') { ?> 
             
             <div class="row g-4 mb-4">
@@ -137,12 +144,62 @@ if ($role == 'student') {
                 </div>
             </div> 
 
+            <div class="card shadow-sm mb-4 border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-hourglass-split"></i> Approved (Waiting for Pickup)</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered table-sm align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Borrower</th>
+                                <th>Tool</th>
+                                <th>Barcode</th> <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php 
+                            // ADDED t.barcode to the query
+                            $sql_pu = "SELECT tr.transaction_id, u.full_name, t.tool_name, t.barcode 
+                                       FROM transactions tr
+                                       JOIN users u ON tr.user_id = u.user_id
+                                       JOIN tools t ON tr.tool_id = t.tool_id
+                                       WHERE tr.status = 'Approved'"; 
+                            $res_pu = mysqli_query($conn, $sql_pu);
+
+                            if ($res_pu && mysqli_num_rows($res_pu) > 0) {
+                                while ($row_pu = mysqli_fetch_assoc($res_pu)) {
+                            ?>
+                                <tr>
+                                    <td><?php echo $row_pu['full_name']; ?></td>
+                                    <td><?php echo $row_pu['tool_name']; ?></td>
+                                    <td><code><?php echo $row_pu['barcode']; ?></code></td> <td><span class="badge bg-warning text-dark">Ready to Pick Up</span></td>
+                                    <td>
+                                        <a href="cancel_request.php?id=<?php echo $row_pu['transaction_id']; ?>" 
+                                           class="btn btn-outline-danger btn-sm"
+                                           onclick="return confirm('Cancel this request? The student will be notified.');">
+                                           Cancel / Not Picked Up
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php 
+                                }
+                            } else {
+                                echo "<tr><td colspan='5' class='text-center text-muted'>No pending pickups.</td></tr>";
+                            }
+                            ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-info text-white">
                     <h5 class="mb-0"><i class="bi bi-person-badge"></i> Currently Borrowed Tools (Active)</h5>
                 </div>
                 <div class="card-body">
-                    <table class="table table-bordered table-hover">
+                    <table class="table table-bordered table-hover align-middle">
                         <thead class="table-light">
                             <tr>
                                 <th>Borrower Name</th>
@@ -150,11 +207,11 @@ if ($role == 'student') {
                                 <th>Barcode</th>
                                 <th>Due Date</th>
                                 <th>Status</th>
-                            </tr>
+                                <th>Action</th> </tr>
                         </thead>
                         <tbody>
                             <?php 
-                            $sql = "SELECT u.full_name, t.tool_name, t.barcode, tr.return_date, tr.status 
+                            $sql = "SELECT tr.transaction_id, u.full_name, t.tool_name, t.barcode, tr.return_date, tr.status 
                                     FROM transactions tr
                                     JOIN users u ON tr.user_id = u.user_id
                                     JOIN tools t ON tr.tool_id = t.tool_id
@@ -173,11 +230,18 @@ if ($role == 'student') {
                                     <td><code><?php echo $row['barcode']; ?></code></td>
                                     <td><?php echo $row['return_date']; ?></td>
                                     <td><span class="badge bg-<?php echo $badge; ?>"><?php echo $status_text; ?></span></td>
+                                    <td>
+                                        <a href="send_single_reminder.php?id=<?php echo $row['transaction_id']; ?>" 
+                                           class="btn btn-outline-primary btn-sm"
+                                           title="Send Email Reminder">
+                                            <i class="bi bi-bell-fill"></i> Remind
+                                        </a>
+                                    </td>
                                 </tr>
                             <?php 
                                 }
                             } else {
-                                echo "<tr><td colspan='5' class='text-center text-muted'>No tools are currently being used.</td></tr>";
+                                echo "<tr><td colspan='6' class='text-center text-muted'>No tools are currently being used.</td></tr>";
                             }
                             ?>
                         </tbody>
@@ -211,24 +275,29 @@ if ($role == 'student') {
                                     (
                                         (tr.status = 'Borrowed' AND DATE(tr.date_requested) = '$today') 
                                         OR 
-                                        (tr.status = 'Returned' AND DATE(tr.actual_return_date) = '$today')
+                                        (tr.status IN ('Returned', 'Cancelled') AND DATE(tr.actual_return_date) = '$today')
                                     )
                                     ORDER BY tr.transaction_id DESC"; 
-                            
+    
                             $result = mysqli_query($conn, $sql);
 
                             if ($result && mysqli_num_rows($result) > 0) {
                                 while ($row = mysqli_fetch_assoc($result)) {
-                                    $type = ($row['status'] == 'Returned') ? 'IN (Returned)' : 'OUT (Issued)';
-                                    $color = ($row['status'] == 'Returned') ? 'success' : 'primary';
-                                    
-                                    if ($row['status'] == 'Returned' && !empty($row['actual_return_date'])) {
-                                        $display_time = date('h:i A', strtotime($row['actual_return_date']));
-                                    } elseif (!empty($row['date_requested'])) {
-                                        $display_time = date('h:i A', strtotime($row['date_requested']));
+                                    if ($row['status'] == 'Returned') {
+                                        $type = 'IN (Returned)';
+                                        $color = 'success';
+                                        $time = $row['actual_return_date'];
+                                    } elseif ($row['status'] == 'Cancelled') {
+                                        $type = 'CANCELLED';
+                                        $color = 'dark';
+                                        $time = $row['actual_return_date'];
                                     } else {
-                                        $display_time = "Today";
+                                        $type = 'OUT (Issued)';
+                                        $color = 'primary';
+                                        $time = $row['date_requested'];
                                     }
+            
+                                    $display_time = date('h:i A', strtotime($time));
                             ?>
                                 <tr>
                                     <td><span class="badge bg-<?php echo $color; ?>"><?php echo $type; ?></span></td>
@@ -239,14 +308,13 @@ if ($role == 'student') {
                             <?php 
                                 }
                             } else { 
-                                echo "<tr><td colspan='4' class='text-center py-3 text-muted fst-italic'>No successful transactions yet today.</td></tr>"; 
+                                echo "<tr><td colspan='4' class='text-center py-3 text-muted fst-italic'>No transactions yet today.</td></tr>"; 
                             }
                             ?>
                         </tbody>
                     </table>
                 </div>
             </div>
-
         <?php } else { ?> 
 
             <?php if ($account_status == 'restricted' && !empty($ban_end)) { ?>
@@ -311,27 +379,60 @@ if ($role == 'student') {
                 <div class="col-md-8 mb-4">
                     <div class="card shadow-sm h-100">
                         <div class="card-header bg-warning text-dark fw-bold">
-                            <i class="bi bi-hourglass-split"></i> My Currently Borrowed Tools
+                            <i class="bi bi-hourglass-split"></i> My Active Tools / Requests
                         </div>
                         <div class="card-body">
                             <ul class="list-group list-group-flush">
                                 <?php 
-                                $sql = "SELECT t.tool_name, tr.return_date, tr.status 
+                                // ADDED t.barcode to the query
+                                $sql = "SELECT tr.transaction_id, t.tool_name, t.barcode, tr.return_date, tr.status 
                                         FROM transactions tr
                                         JOIN tools t ON tr.tool_id = t.tool_id
-                                        WHERE tr.user_id = '$user_id' AND tr.status IN ('Borrowed', 'Approved')";
+                                        WHERE tr.user_id = '$user_id' AND tr.status IN ('Borrowed', 'Approved', 'Pending')";
                                 $result = mysqli_query($conn, $sql);
                                 if (mysqli_num_rows($result) > 0) {
                                     while ($row = mysqli_fetch_assoc($result)) {
-                                        $msg = ($row['status'] == 'Approved') ? "Ready to pick up" : "Due: " . $row['return_date'];
+                                        $status = $row['status'];
+                                        $msg = "";
+                                        $badge_class = "secondary";
+                                        $can_cancel = false;
+
+                                        if ($status == 'Approved') {
+                                            $msg = "Ready to pick up";
+                                            $badge_class = "success";
+                                            $can_cancel = true;
+                                        } elseif ($status == 'Pending') {
+                                            $msg = "Waiting for Approval";
+                                            $badge_class = "warning text-dark";
+                                            $can_cancel = true;
+                                        } else {
+                                            // Borrowed
+                                            $msg = "Due: " . $row['return_date'];
+                                            $badge_class = "primary";
+                                            $can_cancel = false;
+                                        }
                                 ?>
                                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                                        <?php echo $row['tool_name']; ?>
-                                        <span class="badge bg-primary rounded-pill"><?php echo $msg; ?></span>
+                                        <div>
+                                            <strong><?php echo $row['tool_name']; ?></strong>
+                                            <br><small class="text-muted">Barcode: <code><?php echo $row['barcode']; ?></code></small>
+                                            
+                                            <div class="small mt-1">
+                                                <span class="badge bg-<?php echo $badge_class; ?> rounded-pill"><?php echo $msg; ?></span>
+                                            </div>
+                                        </div>
+                                        
+                                        <?php if ($can_cancel) { ?>
+                                            <a href="cancel_request.php?id=<?php echo $row['transaction_id']; ?>" 
+                                               class="btn btn-outline-danger btn-sm"
+                                               onclick="return confirm('Changed your mind? Cancel this request?');">
+                                               ❌ Cancel
+                                            </a>
+                                        <?php } ?>
                                     </li>
                                 <?php 
                                     }
-                                } else { echo "<p class='text-muted p-2'>You have no active tools.</p>"; }
+                                } else { echo "<p class='text-muted p-2'>You have no active tools or requests.</p>"; }
                                 ?>
                             </ul>
                         </div>
@@ -365,20 +466,31 @@ if ($role == 'student') {
                                         JOIN tools t ON tr.tool_id = t.tool_id
                                         WHERE tr.user_id = '$user_id' 
                                         AND ((tr.status = 'Borrowed' AND DATE(tr.date_requested) = '$today') 
-                                        OR (tr.status IN ('Returned', 'Declined') AND DATE(tr.actual_return_date) = '$today'))
+                                        OR (tr.status IN ('Returned', 'Declined', 'Cancelled') AND DATE(tr.actual_return_date) = '$today'))
                                         ORDER BY tr.transaction_id DESC";
                                 $result = mysqli_query($conn, $sql);
 
                                 if ($result && mysqli_num_rows($result) > 0) {
                                     while ($row = mysqli_fetch_assoc($result)) {
+                                        $action = "";
+                                        $badge = "secondary";
+                                        $time = "";
+
                                         if ($row['status'] == 'Borrowed') {
                                             $action = "Borrowed";
                                             $time = date('h:i A', strtotime($row['date_requested']));
                                             $badge = "warning";
-                                        } else {
+                                        } elseif ($row['status'] == 'Returned') {
                                             $action = "Returned";
                                             $time = date('h:i A', strtotime($row['actual_return_date']));
-                                            $badge = ($row['status'] == 'Returned') ? "success" : "danger";
+                                            $badge = "success";
+                                        } elseif ($row['status'] == 'Cancelled') {
+                                            $action = "Cancelled";
+                                            $time = date('h:i A', strtotime($row['actual_return_date'])); 
+                                            $badge = "dark"; 
+                                        } else {
+                                            $action = $row['status'];
+                                            $time = "Today";
                                         }
                                 ?>
                                     <tr>
@@ -387,7 +499,7 @@ if ($role == 'student') {
                                         <td><?php echo $time; ?></td>
                                         <td class="text-end pe-4"><span class="badge bg-<?php echo $badge; ?> rounded-pill"><?php echo $row['status']; ?></span></td>
                                     </tr>
-                                <?php 
+                                <?php  
                                     }
                                 } else { 
                                     echo "<tr><td colspan='4' class='text-center py-4 text-muted fst-italic'>
@@ -400,33 +512,59 @@ if ($role == 'student') {
                     </div>
                 </div>
             </div>
-
+            
             <div class="modal fade" id="fullHistoryModal" tabindex="-1">
                 <div class="modal-dialog modal-lg modal-dialog-scrollable">
                     <div class="modal-content">
-                        <div class="modal-header"><h5 class="modal-title">📜 All Past Transactions</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                        <div class="modal-header">
+                            <h5 class="modal-title">📜 All Past Transactions</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
                         <div class="modal-body p-0">
                             <table class="table table-striped mb-0">
-                                <thead class="table-dark"><tr><th>Date</th><th>Tool</th><th>Status</th></tr></thead>
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Tool</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
                                 <tbody>
                                     <?php 
-                                    $sql_all = "SELECT t.tool_name, tr.status, tr.date_requested FROM transactions tr JOIN tools t ON tr.tool_id = t.tool_id WHERE tr.user_id = '$user_id' ORDER BY tr.transaction_id DESC";
+                                    $sql_all = "SELECT t.tool_name, tr.status, tr.date_requested, tr.actual_return_date 
+                                                FROM transactions tr 
+                                                JOIN tools t ON tr.tool_id = t.tool_id 
+                                                WHERE tr.user_id = '$user_id' 
+                                                ORDER BY tr.transaction_id DESC";
+                                    
                                     $res_all = mysqli_query($conn, $sql_all);
-                                    while ($row_all = mysqli_fetch_assoc($res_all)) {
+                                    
+                                    if (mysqli_num_rows($res_all) > 0) {
+                                        while ($row_all = mysqli_fetch_assoc($res_all)) {
+                                            $badge_color = 'secondary';
+                                            if ($row_all['status'] == 'Borrowed') $badge_color = 'warning text-dark';
+                                            if ($row_all['status'] == 'Returned') $badge_color = 'success';
+                                            if ($row_all['status'] == 'Cancelled') $badge_color = 'dark';
+                                            
+                                            $date_show = ($row_all['status'] == 'Cancelled' || $row_all['status'] == 'Returned') ? $row_all['actual_return_date'] : $row_all['date_requested'];
                                     ?>
                                         <tr>
-                                            <td><?php echo date('M d, Y', strtotime($row_all['date_requested'])); ?></td>
+                                            <td><?php echo date('M d, Y', strtotime($date_show)); ?></td>
                                             <td><?php echo $row_all['tool_name']; ?></td>
-                                            <td><span class="badge bg-secondary"><?php echo $row_all['status']; ?></span></td>
+                                            <td><span class="badge bg-<?php echo $badge_color; ?>"><?php echo $row_all['status']; ?></span></td>
                                         </tr>
-                                    <?php } ?>
+                                    <?php 
+                                        } 
+                                    } else {
+                                        echo "<tr><td colspan='3' class='text-center p-3'>No records found.</td></tr>";
+                                    }
+                                    ?>
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </div>
-            </div>
-
+            </div>                        
             <div class="modal fade" id="penaltyRulesModal" tabindex="-1">
                 <div class="modal-dialog">
                     <div class="modal-content">
