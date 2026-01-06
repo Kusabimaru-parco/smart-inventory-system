@@ -16,7 +16,14 @@ $search = isset($_GET['search']) ? $_GET['search'] : '';
 $category = isset($_GET['category']) ? $_GET['category'] : '';
 
 // Build the SQL Query dynamically
-$sql = "SELECT * FROM tools WHERE status = 'Available'";
+$sql = "SELECT * FROM tools 
+        WHERE status = 'Available' 
+        AND tool_id NOT IN (
+            SELECT tool_id FROM transactions 
+            WHERE status IN ('Pending', 'Approved')
+        )";
+
+$result = mysqli_query($conn, $sql);
 
 if ($search != '') {
     $sql .= " AND tool_name LIKE '%$search%'";
