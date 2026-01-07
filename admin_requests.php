@@ -3,7 +3,10 @@ session_start();
 include "db_conn.php";
 
 // Security Check
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
+// Allow access if role is 'admin' OR 'student_assistant'
+if (!isset($_SESSION['user_id']) || 
+   ($_SESSION['role'] != 'admin' && $_SESSION['role'] != 'student_assistant')) {
+    
     header("Location: index.php");
     exit();
 }
@@ -52,59 +55,72 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
 
         <div class="card shadow-sm">
             <div class="card-body p-0">
-                <table class="table table-hover mb-0 align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th class="ps-4">Student Name</th>
-                            <th>Tool Requested</th>
-                            <th>Dates</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php 
-                        // JOIN query to get Student Name and Tool Name
-                        $sql = "SELECT t.transaction_id, t.borrow_date, t.return_date, 
-                                       u.full_name, tl.tool_name 
-                                FROM transactions t
-                                JOIN users u ON t.user_id = u.user_id
-                                JOIN tools tl ON t.tool_id = tl.tool_id
-                                WHERE t.status = 'Pending'
-                                ORDER BY t.transaction_id DESC";
-                        
-                        $result = mysqli_query($conn, $sql);
-
-                        if (mysqli_num_rows($result) > 0) {
-                            while ($row = mysqli_fetch_assoc($result)) {
-                        ?>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 align-middle">
+                        <thead class="table-light">
                             <tr>
-                                <td class="ps-4 fw-bold"><?php echo $row['full_name']; ?></td>
-                                <td><?php echo $row['tool_name']; ?></td>
-                                <td>
-                                    <small class="text-muted d-block">Borrow: <?php echo date('M d', strtotime($row['borrow_date'])); ?></small>
-                                    <small class="text-danger fw-bold">Return: <?php echo date('M d', strtotime($row['return_date'])); ?></small>
-                                </td>
-                                <td>
-                                    <a href="request_action.php?id=<?php echo $row['transaction_id']; ?>&action=approve" 
-                                       class="btn btn-success btn-sm me-1">
-                                       <i class="bi bi-check-lg"></i> Approve
-                                    </a>
-                                    
-                                    <a href="request_action.php?id=<?php echo $row['transaction_id']; ?>&action=decline" 
-                                       class="btn btn-outline-danger btn-sm"
-                                       onclick="return confirm('Decline request for <?php echo $row['tool_name']; ?>?');">
-                                       <i class="bi bi-x-lg"></i> Decline
-                                    </a>
-                                </td>
+                                <th class="ps-4">Control No.</th> <th>Student Name</th>
+                                <th>Tool Requested</th>
+                                <th>Subject / Room</th> <th>Dates</th>
+                                <th>Actions</th>
                             </tr>
-                        <?php 
+                        </thead>
+                        <tbody>
+                            <?php 
+                            // UPDATED QUERY: Added t.control_no, t.subject, t.room_no
+                            $sql = "SELECT t.transaction_id, t.borrow_date, t.return_date, 
+                                           t.control_no, t.subject, t.room_no,
+                                           u.full_name, tl.tool_name 
+                                    FROM transactions t
+                                    JOIN users u ON t.user_id = u.user_id
+                                    JOIN tools tl ON t.tool_id = tl.tool_id
+                                    WHERE t.status = 'Pending'
+                                    ORDER BY t.transaction_id DESC";
+                            
+                            $result = mysqli_query($conn, $sql);
+
+                            if (mysqli_num_rows($result) > 0) {
+                                while ($row = mysqli_fetch_assoc($result)) {
+                            ?>
+                                <tr>
+                                    <td class="ps-4 fw-bold text-primary">
+                                        <?php echo $row['control_no']; ?>
+                                    </td>
+                                    
+                                    <td class="fw-bold"><?php echo $row['full_name']; ?></td>
+                                    <td><?php echo $row['tool_name']; ?></td>
+                                    
+                                    <td>
+                                        <div class="fw-bold text-dark"><?php echo $row['subject']; ?></div>
+                                        <small class="text-muted"><i class="bi bi-geo-alt"></i> <?php echo $row['room_no']; ?></small>
+                                    </td>
+
+                                    <td>
+                                        <small class="text-muted d-block">Borrow: <?php echo date('M d', strtotime($row['borrow_date'])); ?></small>
+                                        <small class="text-danger fw-bold">Return: <?php echo date('M d', strtotime($row['return_date'])); ?></small>
+                                    </td>
+                                    <td>
+                                        <a href="request_action.php?id=<?php echo $row['transaction_id']; ?>&action=approve" 
+                                           class="btn btn-success btn-sm me-1">
+                                           <i class="bi bi-check-lg"></i> Approve
+                                        </a>
+                                        
+                                        <a href="request_action.php?id=<?php echo $row['transaction_id']; ?>&action=decline" 
+                                           class="btn btn-outline-danger btn-sm"
+                                           onclick="return confirm('Decline request for <?php echo $row['tool_name']; ?>?');">
+                                           <i class="bi bi-x-lg"></i> Decline
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php 
+                                }
+                            } else {
+                                echo "<tr><td colspan='6' class='text-center py-5 text-muted'>No pending requests found.</td></tr>";
                             }
-                        } else {
-                            echo "<tr><td colspan='4' class='text-center py-5 text-muted'>No pending requests found.</td></tr>";
-                        }
-                        ?>
-                    </tbody>
-                </table>
+                            ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>

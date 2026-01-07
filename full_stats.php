@@ -1,10 +1,15 @@
 <?php 
 session_start();
 include "db_conn.php";
-
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
-    die("Access Denied");
+// Security Check
+// Allow access if role is 'admin' OR 'student_assistant'
+if (!isset($_SESSION['user_id']) || 
+   ($_SESSION['role'] != 'admin' && $_SESSION['role'] != 'student_assistant')) {
+    
+    header("Location: index.php");
+    exit();
 }
+
 
 // --- GET FILTERS ---
 $filter_type = isset($_GET['filter_type']) ? $_GET['filter_type'] : 'daily';

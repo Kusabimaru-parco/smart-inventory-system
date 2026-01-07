@@ -30,6 +30,15 @@
                 <small class="text-muted">This will be your Login ID.</small>
             </div>
             <div class="mb-3">
+                <label class="form-label">Course</label>
+                <input type="text" name="course" class="form-control" placeholder="Ex. DIT" required>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Year & Section</label>
+                <input type="text" name="year_section" class="form-control" placeholder="Ex. 2-1" required>
+            </div>
+            <div class="mb-3">
                 <label>Email Address</label>
                 <input type="email" name="email" class="form-control" placeholder="juan@student.pup.edu.ph" required>
                 <small class="text-muted">We will contact you here</small>
