@@ -61,7 +61,15 @@ $ids = implode(',', $cart_items); // Convert array [1,2,3] to string "1,2,3" for
                         </table>
 
                         <hr>
-                        
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Subject / Class Name:</label>
+                            <input type="text" name="subject" class="form-control" placeholder="Ex. Networking 1" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Room No. / Laboratory:</label>
+                            <input type="text" name="room_no" class="form-control" placeholder="Ex. Lab 1 (301)" required>
+                        </div>
                         <div class="row g-3 align-items-end">
                             <div class="col-md-8">
                                 <label class="form-label fw-bold">When will you return these items?</label>

@@ -1,6 +1,17 @@
 <?php
-// Load Database & PHPMailer
+session_start();
 include "db_conn.php";
+
+// --- SECURITY CHECK (Admins & SAs Only) ---
+if (!isset($_SESSION['user_id']) || 
+   ($_SESSION['role'] != 'admin' && $_SESSION['role'] != 'student_assistant')) {
+    
+    // If accessed directly without login, or by a student
+    header("Location: index.php");
+    exit();
+}
+// ------------------------------------------
+
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 

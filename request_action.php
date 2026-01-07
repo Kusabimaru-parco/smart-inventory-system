@@ -2,8 +2,11 @@
 session_start();
 include "db_conn.php";
 
-// 1. Security Check
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
+// Security Check
+// Allow access if role is 'admin' OR 'student_assistant'
+if (!isset($_SESSION['user_id']) || 
+   ($_SESSION['role'] != 'admin' && $_SESSION['role'] != 'student_assistant')) {
+    
     header("Location: index.php");
     exit();
 }
