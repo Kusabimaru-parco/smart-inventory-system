@@ -33,55 +33,77 @@ if (isset($_POST['create_sa'])) {
     }
 }
 
-// --- 2. USER ACTIONS ---
+// --- 2. MANUAL BAN LOGIC (POST) ---
+if (isset($_POST['manual_ban'])) {
+    $target_id = mysqli_real_escape_string($conn, $_POST['ban_user_id']);
+    $duration = $_POST['ban_duration']; // '1_day', '1_week', '1_month', 'permanent'
+    $reason = mysqli_real_escape_string($conn, $_POST['ban_reason']);
+    
+    // Calculate End Date
+    $ban_end_date = "NULL"; // Default for permanent
+    if ($duration == '1_day') {
+        $ban_end_date = "'" . date('Y-m-d H:i:s', strtotime('+1 day')) . "'";
+    } elseif ($duration == '1_week') {
+        $ban_end_date = "'" . date('Y-m-d H:i:s', strtotime('+1 week')) . "'";
+    } elseif ($duration == '1_month') {
+        $ban_end_date = "'" . date('Y-m-d H:i:s', strtotime('+1 month')) . "'";
+    }
+
+    $sql = "UPDATE users SET 
+            account_status = 'restricted', 
+            ban_end_date = $ban_end_date, 
+            ban_reason = '$reason' 
+            WHERE user_id = '$target_id'";
+
+    if (mysqli_query($conn, $sql)) {
+        $msg = "User successfully banned for " . str_replace('_', ' ', $duration) . ".";
+    } else {
+        $error = "Failed to ban user: " . mysqli_error($conn);
+    }
+}
+
+// --- 3. GET ACTIONS (Unban, Reset, Delete) ---
 if (isset($_GET['action']) && isset($_GET['id'])) {
-    $target_id = $_GET['id'];
+    $target_id = mysqli_real_escape_string($conn, $_GET['id']);
     $action = $_GET['action'];
     
-    // Prevent Admin from acting on themselves
     if ($target_id == $_SESSION['user_id']) {
         $error = "You cannot perform actions on your own account.";
     } else {
-        if ($action == 'ban') {
-            mysqli_query($conn, "UPDATE users SET account_status='restricted' WHERE user_id='$target_id'");
-            $msg = "User has been banned.";
-        } elseif ($action == 'unban') {
-            mysqli_query($conn, "UPDATE users SET account_status='active', penalty_points=0 WHERE user_id='$target_id'");
-            $msg = "User activated and points reset.";
-        } elseif ($action == 'reset_pass') {
-            $default_pass = '12345'; 
-            mysqli_query($conn, "UPDATE users SET password='$default_pass' WHERE user_id='$target_id'");
-            $msg = "Password reset to '12345'.";
+        if ($action == 'unban') {
+            // Unban: Set active, clear ban date/reason. 
+            // Note: We do NOT reset points here automatically unless you want to.
+            mysqli_query($conn, "UPDATE users SET account_status='active', ban_end_date=NULL, ban_reason=NULL WHERE user_id='$target_id'");
+            $msg = "User has been unbanned and reactivated.";
+        } elseif ($action == 'reset_points') {
+            mysqli_query($conn, "UPDATE users SET penalty_points=0 WHERE user_id='$target_id'");
+            $msg = "User's penalty points have been reset to 0.";
         } elseif ($action == 'delete') {
-            // --- SOFT DELETE LOGIC ---
-            // 1. Check if they have UNRETURNED tools (Safety Check)
-            $check_active = mysqli_query($conn, "SELECT * FROM transactions WHERE user_id='$target_id' AND status='Borrowed'");
+            $timestamp = time();
+            $archived_id = "DEL_" . rand(100,999) . "_" . $timestamp; 
+            $archived_id = substr($archived_id, 0, 20); 
+
+            $u_query = mysqli_query($conn, "SELECT email FROM users WHERE user_id='$target_id'");
+            $u_data = mysqli_fetch_assoc($u_query);
+            $old_email = $u_data['email'];
+            $archived_email = "DEL_" . $timestamp . "_" . $old_email;
+
+            $sql_del = "UPDATE users SET 
+                        account_status = 'deleted', 
+                        id_number = '$archived_id', 
+                        email = '$archived_email',
+                        password = '' 
+                        WHERE user_id='$target_id'";
             
-            if (mysqli_num_rows($check_active) > 0) {
-                $error = "❌ Cannot delete user: They still have unreturned tools.";
+            if (mysqli_query($conn, $sql_del)) {
+                $msg = "User deleted successfully.";
             } else {
-                // 2. Perform Soft Delete (Archive)
-                // We change ID so the original ID can be reused, remove password, set status to 'deleted'
-                // This keeps the row for history reports, but hides it from management.
-                $archived_id = "DEL_" . time() . "_" . rand(10,99); 
-                
-                $sql_del = "UPDATE users SET 
-                            account_status = 'deleted', 
-                            id_number = '$archived_id', 
-                            password = '' 
-                            WHERE user_id='$target_id'";
-                
-                if (mysqli_query($conn, $sql_del)) {
-                    $msg = "User deleted successfully (Account archived to preserve history).";
-                } else {
-                    $error = "Database Error: " . mysqli_error($conn);
-                }
+                $error = "Database Error: " . mysqli_error($conn);
             }
         }
     }
 }
 
-// --- SEARCH LOGIC ---
 $search = isset($_GET['search']) ? $_GET['search'] : '';
 ?>
 
@@ -106,7 +128,6 @@ $search = isset($_GET['search']) ? $_GET['search'] : '';
     </nav>
 
     <div class="container mt-5">
-        
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h3>👥 Student & Faculty Directory</h3>
         </div>
@@ -117,7 +138,6 @@ $search = isset($_GET['search']) ? $_GET['search'] : '';
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php } ?>
-
         <?php if (isset($error)) { ?>
             <div class="alert alert-danger alert-dismissible fade show">
                 <?php echo $error; ?>
@@ -127,20 +147,13 @@ $search = isset($_GET['search']) ? $_GET['search'] : '';
 
         <div class="card shadow-sm">
             <div class="card-body">
-                
                 <form method="GET" class="row g-2 mb-4">
                     <div class="col-md-5">
-                        <input type="text" name="search" class="form-control" 
-                               placeholder="Search by Name or ID Number..." 
-                               value="<?php echo htmlspecialchars($search); ?>">
+                        <input type="text" name="search" class="form-control" placeholder="Search by Name or ID Number..." value="<?php echo htmlspecialchars($search); ?>">
                     </div>
+                    <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Search</button></div>
                     <div class="col-md-2">
-                        <button type="submit" class="btn btn-primary w-100">Search</button>
-                    </div>
-                    <div class="col-md-2">
-                        <?php if($search != ''): ?>
-                            <a href="users.php" class="btn btn-secondary w-100">Clear</a>
-                        <?php endif; ?>
+                        <?php if($search != ''): ?><a href="users.php" class="btn btn-secondary w-100">Clear</a><?php endif; ?>
                     </div>
                 </form>
 
@@ -148,47 +161,37 @@ $search = isset($_GET['search']) ? $_GET['search'] : '';
                     <table class="table table-hover table-bordered align-middle">
                         <thead class="table-light">
                             <tr>
-                                <th>ID Number</th>
-                                <th>Full Name</th>
-                                <th>Email</th>
-                                <th>Role</th>
-                                <th>Points</th>
-                                <th>Status</th>
+                                <th>ID Number</th> <th>Full Name</th> <th>Email</th> <th>Role</th> <th>Points</th> <th>Status</th>
                                 <th style="width: 250px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php 
-                            // HIDE Deleted Users and Admins from this list
                             $sql = "SELECT * FROM users WHERE role != 'admin' AND account_status != 'deleted'";
-
                             if ($search != '') {
                                 $safe_search = mysqli_real_escape_string($conn, $search);
                                 $sql .= " AND (full_name LIKE '%$safe_search%' OR id_number LIKE '%$safe_search%')";
                             }
-
                             $sql .= " ORDER BY role ASC, penalty_points DESC"; 
                             $result = mysqli_query($conn, $sql);
 
                             if (mysqli_num_rows($result) > 0) {
                                 while ($row = mysqli_fetch_assoc($result)) {
-                                    
-                                    // Status Logic
                                     $points = $row['penalty_points'];
-                                    $ban_end = $row['ban_end_date'];
-                                    $current_date = date('Y-m-d H:i:s');
+                                    $status = $row['account_status'];
                                     $row_class = "";
                                     $status_badge = "success";
                                     $status_text = "Active";
 
-                                    if ($points >= 60) {
+                                    // Visual Logic
+                                    if ($status == 'restricted') {
+                                        $row_class = "table-warning";
+                                        $status_badge = "warning text-dark";
+                                        $status_text = "BANNED";
+                                    } elseif ($points >= 60) {
                                         $row_class = "table-danger"; 
                                         $status_badge = "danger";
-                                        $status_text = "RESTRICTED";
-                                    } elseif (!empty($ban_end) && $ban_end > $current_date) {
-                                        $row_class = "table-warning"; 
-                                        $status_badge = "warning text-dark";
-                                        $status_text = "SUSPENDED";
+                                        $status_text = "AUTO-RESTRICTED";
                                     }
                                     
                                     $role_badge = ($row['role'] == 'student_assistant') ? 'primary' : 'secondary';
@@ -196,30 +199,39 @@ $search = isset($_GET['search']) ? $_GET['search'] : '';
                                 <tr class="<?php echo $row_class; ?>">
                                     <td><?php echo $row['id_number']; ?></td>
                                     <td class="fw-bold"><?php echo $row['full_name']; ?></td>
-                                    <td><?php echo !empty($row['email']) ? $row['email'] : '<span class="text-muted">-</span>'; ?></td>
+                                    <td><?php echo $row['email']; ?></td>
                                     <td><span class="badge bg-<?php echo $role_badge; ?>"><?php echo strtoupper($row['role']); ?></span></td>
                                     <td class="fw-bold text-center"><?php echo $points; ?></td>
                                     <td><span class="badge bg-<?php echo $status_badge; ?>"><?php echo $status_text; ?></span></td>
                                     <td>
                                         <div class="d-flex gap-1">
-                                            <a href="users.php?action=reset_pass&id=<?php echo $row['user_id']; ?>" 
-                                               class="btn btn-outline-secondary btn-sm"
-                                               onclick="return confirm('Reset password to 12345?');" title="Reset Password">
-                                               <i class="bi bi-key"></i>
-                                            </a>
+                                            
+                                            <?php if ($status == 'restricted') { ?>
+                                                <a href="users.php?action=unban&id=<?php echo $row['user_id']; ?>" 
+                                                   class="btn btn-success btn-sm"
+                                                   onclick="return confirm('Lift the ban for this user?');"
+                                                   title="Unban User">
+                                                    <i class="bi bi-check-circle-fill"></i> Unban
+                                                </a>
+                                            <?php } else { ?>
+                                                <button class="btn btn-outline-warning btn-sm" 
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#banModal"
+                                                        data-userid="<?php echo $row['user_id']; ?>"
+                                                        data-name="<?php echo $row['full_name']; ?>" title="Ban User">
+                                                    <i class="bi bi-slash-circle"></i> Ban
+                                                </button>
+                                            <?php } ?>
 
-                                            <button class="btn btn-outline-warning btn-sm" 
-                                                    data-bs-toggle="modal" 
-                                                    data-bs-target="#banModal"
-                                                    data-userid="<?php echo $row['user_id']; ?>"
-                                                    data-name="<?php echo $row['full_name']; ?>" title="Ban User">
-                                                <i class="bi bi-slash-circle"></i>
-                                            </button>
+                                            <a href="users.php?action=reset_points&id=<?php echo $row['user_id']; ?>" 
+                                               class="btn btn-outline-info btn-sm"
+                                               onclick="return confirm('Reset points to 0?');" title="Reset Points">
+                                               <i class="bi bi-arrow-counterclockwise"></i>
+                                            </a>
 
                                             <a href="users.php?action=delete&id=<?php echo $row['user_id']; ?>" 
                                                class="btn btn-danger btn-sm"
-                                               onclick="return confirm('⚠️ DELETE ACCOUNT?\n\nThe user will be removed from this list, but their past transaction history will be KEPT for reports.\n\nContinue?');"
-                                               title="Delete User">
+                                               onclick="return confirm('Delete this user?');" title="Delete">
                                                <i class="bi bi-trash-fill"></i>
                                             </a>
                                         </div>
@@ -241,21 +253,39 @@ $search = isset($_GET['search']) ? $_GET['search'] : '';
     <div class="modal fade" id="banModal" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
-                <form action="users.php" method="GET">
+                <form action="users.php" method="POST">
                     <div class="modal-header bg-warning text-dark">
-                        <h5 class="modal-title">Suspend User</h5>
+                        <h5 class="modal-title"><i class="bi bi-slash-circle"></i> Manual Ban User</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <p>Suspending: <strong id="banNameDisplay"></strong></p>
-                        <input type="hidden" name="id" id="banIdInput">
-                        <input type="hidden" name="action" value="ban">
+                        <p>Banning: <strong id="banNameDisplay" class="fs-5"></strong></p>
+                        <input type="hidden" name="ban_user_id" id="banIdInput">
                         
-                        <p class="text-muted small">This will set the user status to 'Restricted'.</p>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Ban Duration:</label>
+                            <select name="ban_duration" class="form-select" required>
+                                <option value="1_day">1 Day</option>
+                                <option value="1_week">1 Week</option>
+                                <option value="1_month">1 Month</option>
+                                <option value="permanent">Permanent / Indefinite</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Reason / Message to Student:</label>
+                            <textarea name="ban_reason" class="form-control" rows="3" placeholder="Ex. Disrespectful behavior in the lab." required></textarea>
+                        </div>
+
+                        <div class="alert alert-warning small">
+                            <i class="bi bi-info-circle"></i> The student will see this message on their dashboard and cannot borrow tools.
+                        </div>
+                        
+                        <input type="hidden" name="manual_ban" value="true">
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-warning">Confirm Suspension</button>
+                        <button type="submit" class="btn btn-danger">Confirm Ban</button>
                     </div>
                 </form>
             </div>
@@ -266,26 +296,16 @@ $search = isset($_GET['search']) ? $_GET['search'] : '';
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title"><i class="bi bi-person-plus"></i> Add Student Assistant</h5>
+                    <h5 class="modal-title">Add Student Assistant</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <form method="POST">
                     <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label">Full Name</label>
-                            <input type="text" name="full_name" class="form-control" placeholder="Ex. Juan Dela Cruz" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Password</label>
-                            <input type="text" name="password" class="form-control" placeholder="Ex. sa_pass123" required>
-                        </div>
-                        <div class="alert alert-info small mb-0">
-                            <i class="bi bi-info-circle"></i> Login ID (e.g., SA-001) will be auto-generated.
-                        </div>
+                        <div class="mb-3"><label>Name</label><input type="text" name="full_name" class="form-control" required></div>
+                        <div class="mb-3"><label>Password</label><input type="text" name="password" class="form-control" required></div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="submit" name="create_sa" class="btn btn-primary">Create Account</button>
+                        <button type="submit" name="create_sa" class="btn btn-primary">Create</button>
                     </div>
                 </form>
             </div>
@@ -299,7 +319,6 @@ $search = isset($_GET['search']) ? $_GET['search'] : '';
             var button = event.relatedTarget;
             var userId = button.getAttribute('data-userid');
             var userName = button.getAttribute('data-name');
-            
             document.getElementById('banIdInput').value = userId;
             document.getElementById('banNameDisplay').textContent = userName;
         });

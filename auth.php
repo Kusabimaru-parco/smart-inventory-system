@@ -25,11 +25,8 @@ if (isset($_POST['id_number']) && isset($_POST['password'])) {
         if (mysqli_num_rows($result) === 1) {
             $row = mysqli_fetch_assoc($result);
             
-            // CHECK PENALTY POINTS (The Capstone Feature)
-            if ($row['penalty_points'] >= 60) {
-                header("Location: index.php?error=ACCOUNT BANNED: You have 60+ penalty points.");
-                exit();
-            }
+            // --- REMOVED THE PENALTY POINT CHECK HERE ---
+            // We want them to login so they can see the 'Banned' dashboard.
 
             // Success! Store user info in session
             $_SESSION['user_id'] = $row['user_id'];
@@ -47,3 +44,4 @@ if (isset($_POST['id_number']) && isset($_POST['password'])) {
     header("Location: index.php");
     exit();
 }
+?>
