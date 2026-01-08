@@ -106,7 +106,11 @@ $filter_date = isset($_GET['date']) ? $_GET['date'] : '';
                             $processed_by = !empty($row['processed_by']) ? $row['processed_by'] : '-';
                     ?>
                         <tr>
-                            <td class="fw-bold text-primary"><?php echo $row['control_no']; ?></td>
+                            <td class="fw-bold text-primary">
+                                <a href="print_slip.php?control_no=<?php echo $row['control_no']; ?>" target="_blank" class="text-decoration-none">
+                                    <?php echo $row['control_no']; ?>
+                                </a>
+                            </td>
                             <td><?php echo $display_date; ?></td>
                             <td><?php echo $row['full_name']; ?></td>
                             <td><?php echo $row['tool_name']; ?></td>

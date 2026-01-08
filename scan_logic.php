@@ -11,13 +11,11 @@ if (isset($_POST['barcode'])) {
 
     if (isset($_SESSION['role'])) {
         if ($_SESSION['role'] == 'admin') {
-            $processor_name = "Admin"; // Per your request: Record Admin as just "Admin"
+            $processor_name = "Admin"; 
         } elseif ($_SESSION['role'] == 'student_assistant') {
-            // For SAs, record their actual Full Name
             $processor_name = mysqli_real_escape_string($conn, $_SESSION['name']); 
         }
     }
-    // ------------------------------------------------
 
     // 1. FIND THE TOOL ID from the Barcode
     $tool_query = mysqli_query($conn, "SELECT tool_id, tool_name FROM tools WHERE barcode = '$barcode'");
@@ -55,7 +53,6 @@ if (isset($_POST['barcode'])) {
     if ($current_status == 'Approved') {
         
         // Update Transaction 
-        // ADDED: processed_by='$processor_name'
         $sql_issue = "UPDATE transactions 
                       SET status='Borrowed', actual_borrow_date=NOW(), processed_by='$processor_name' 
                       WHERE transaction_id='$trans_id'";
@@ -76,7 +73,7 @@ if (isset($_POST['barcode'])) {
         
         $msg = "RETURNED: $tool_name.";
         
-        // *** PENALTY CHECK ***
+        // *** PENALTY CHECK (EXPONENTIAL) ***
         $due_date = $trans['return_date'];
         $today = date('Y-m-d');
 
@@ -88,11 +85,17 @@ if (isset($_POST['barcode'])) {
             // 2. Convert to days
             $days_late = ceil($diff / (60 * 60 * 24));
     
-            // 3. Calculate Points (5 points per day)
-            $points = $days_late * 5; 
+            // 3. Calculate Points (EXPONENTIAL FORMULA)
+            // Formula: 5 * 2^(days_late - 1)
+            // Day 1: 5 * 1 = 5
+            // Day 2: 5 * 2 = 10
+            // Day 3: 5 * 4 = 20
+            // Day 4: 5 * 8 = 40
+            // Day 5: 5 * 16 = 80 (Auto Ban)
+            $points = 5 * pow(2, $days_late - 1);
 
             // 4. Add Penalty Record
-            $reason = "Late Return ($days_late days)";
+            $reason = "Late Return ($days_late days) - Exponential Penalty";
             $sql_penalty = "INSERT INTO penalties (user_id, points, reason) VALUES ('$user_id', '$points', '$reason')";
             
             if (!mysqli_query($conn, $sql_penalty)) {
@@ -100,19 +103,25 @@ if (isset($_POST['barcode'])) {
                  exit();
             }
 
-            // 5. Update User Profile
+            // 5. Update User Profile (Add to existing points)
             $sql_update = "UPDATE users SET penalty_points = penalty_points + $points WHERE user_id='$user_id'";
             mysqli_query($conn, $sql_update);
 
-            // 6. Check for Ban (Immediate restriction)
-            $sql_check_ban = "UPDATE users SET account_status = 'restricted' WHERE user_id='$user_id' AND penalty_points >= 60";
-            mysqli_query($conn, $sql_check_ban);
-
-            $msg = "LATE RETURN! $days_late days late. $points Penalty Points added.";
+            // 6. Check for Ban (Immediate restriction if points >= 60)
+            // We fetch the updated total points first to be sure
+            $u_res = mysqli_query($conn, "SELECT penalty_points FROM users WHERE user_id='$user_id'");
+            $u_row = mysqli_fetch_assoc($u_res);
+            
+            if ($u_row['penalty_points'] >= 60) {
+                // Apply the Ban
+                mysqli_query($conn, "UPDATE users SET account_status = 'restricted' WHERE user_id='$user_id'");
+                $msg = "LATE RETURN ($days_late days). $points Pts added. ACCOUNT BANNED (Hit Limit).";
+            } else {
+                $msg = "LATE RETURN ($days_late days). $points Penalty Points added.";
+            }
         }
 
         // Finalize Return Updates
-        // ADDED: processed_by='$processor_name'
         $sql_return = "UPDATE transactions 
                        SET status='Returned', actual_return_date=NOW(), processed_by='$processor_name' 
                        WHERE transaction_id='$trans_id'";

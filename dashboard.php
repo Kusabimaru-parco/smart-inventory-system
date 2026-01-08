@@ -49,9 +49,7 @@ if ($role == 'student') {
     <title>Smart Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    
     <link rel="stylesheet" href="assets/css/message_request.css">
-    
 </head>
 <body class="bg-light">
 
@@ -98,7 +96,6 @@ if ($role == 'student') {
                                 <i class="bi bi-envelope"></i> Requests
                                 <span id="reqBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none;">
                                     0
-                                    <span class="visually-hidden">unread messages</span>
                                 </span>
                             </h5>
                             <p class="card-text">Approve student borrow requests.</p>
@@ -156,8 +153,10 @@ if ($role == 'student') {
                     <table class="table table-bordered table-sm align-middle">
                         <thead class="table-light">
                             <tr>
-                                <th>Control No.</th> <th>Borrower</th>
+                                <th>Control No.</th> 
+                                <th>Borrower</th>
                                 <th>Tool</th>
+                                <th>Subject / Room</th> 
                                 <th>Barcode</th> 
                                 <th>Status</th>
                                 <th>Action</th>
@@ -165,7 +164,7 @@ if ($role == 'student') {
                         </thead>
                         <tbody>
                             <?php 
-                            $sql_pu = "SELECT tr.transaction_id, tr.control_no, u.full_name, t.tool_name, t.barcode 
+                            $sql_pu = "SELECT tr.transaction_id, tr.control_no, tr.subject, tr.room_no, u.full_name, t.tool_name, t.barcode 
                                        FROM transactions tr
                                        JOIN users u ON tr.user_id = u.user_id
                                        JOIN tools t ON tr.tool_id = t.tool_id
@@ -179,20 +178,24 @@ if ($role == 'student') {
                                     <td class="fw-bold text-primary"><?php echo $row_pu['control_no']; ?></td>
                                     <td><?php echo $row_pu['full_name']; ?></td>
                                     <td><?php echo $row_pu['tool_name']; ?></td>
+                                    <td>
+                                        <div class="small fw-bold"><?php echo $row_pu['subject']; ?></div>
+                                        <div class="small text-muted"><?php echo $row_pu['room_no']; ?></div>
+                                    </td>
                                     <td><code><?php echo $row_pu['barcode']; ?></code></td> 
                                     <td><span class="badge bg-warning text-dark">Ready to Pick Up</span></td>
                                     <td>
                                         <a href="cancel_request.php?id=<?php echo $row_pu['transaction_id']; ?>" 
                                            class="btn btn-outline-danger btn-sm"
                                            onclick="return confirm('Cancel this request? The student will be notified.');">
-                                           Cancel / Not Picked Up
+                                           Cancel
                                         </a>
                                     </td>
                                 </tr>
                             <?php 
                                 }
                             } else {
-                                echo "<tr><td colspan='6' class='text-center text-muted'>No pending pickups.</td></tr>";
+                                echo "<tr><td colspan='7' class='text-center text-muted'>No pending pickups.</td></tr>";
                             }
                             ?>
                         </tbody>
@@ -210,18 +213,18 @@ if ($role == 'student') {
                             <thead class="table-light">
                                 <tr>
                                     <th>Control No.</th>
-                                    <th>Borrower Name</th>
-                                    <th>Tool Name</th>
-                                    <th>Time Borrowed</th> 
-                                    <th>Processed By</th> <th>Due Date</th>
+                                    <th>Borrower</th>
+                                    <th>Tool</th>
+                                    <th>Subject / Room</th> <th>Borrowed At</th> 
+                                    <th>Processed By</th> 
+                                    <th>Due Date</th>
                                     <th>Status</th>
                                     <th>Action</th> 
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php 
-                                // Added processed_by
-                                $sql = "SELECT tr.transaction_id, tr.control_no, u.full_name, t.tool_name, t.barcode, 
+                                $sql = "SELECT tr.transaction_id, tr.control_no, tr.subject, tr.room_no, u.full_name, t.tool_name, t.barcode, 
                                                tr.return_date, tr.status, tr.actual_borrow_date, tr.date_requested, tr.processed_by 
                                         FROM transactions tr
                                         JOIN users u ON tr.user_id = u.user_id
@@ -238,7 +241,6 @@ if ($role == 'student') {
                                         $borrow_time_raw = !empty($row['actual_borrow_date']) ? $row['actual_borrow_date'] : $row['date_requested'];
                                         $borrow_time_display = date('h:i A', strtotime($borrow_time_raw));
                                         
-                                        // Handle empty processed_by
                                         $processed_by = !empty($row['processed_by']) ? $row['processed_by'] : 'System';
                                 ?>
                                     <tr>
@@ -248,11 +250,12 @@ if ($role == 'student') {
                                             <?php echo $row['tool_name']; ?>
                                             <br><small class="text-muted"><?php echo $row['barcode']; ?></small>
                                         </td>
-                                        
+                                        <td>
+                                            <div class="small fw-bold"><?php echo $row['subject']; ?></div>
+                                            <div class="small text-muted"><?php echo $row['room_no']; ?></div>
+                                        </td>
                                         <td class="fw-bold"><?php echo $borrow_time_display; ?></td>
-                                        
                                         <td><span class="badge bg-secondary"><?php echo $processed_by; ?></span></td>
-                                        
                                         <td><?php echo $row['return_date']; ?></td>
                                         <td><span class="badge bg-<?php echo $badge; ?>"><?php echo $status_text; ?></span></td>
                                         <td>
@@ -266,7 +269,7 @@ if ($role == 'student') {
                                 <?php 
                                     }
                                 } else {
-                                    echo "<tr><td colspan='8' class='text-center text-muted'>No tools are currently being used.</td></tr>";
+                                    echo "<tr><td colspan='9' class='text-center text-muted'>No tools are currently being used.</td></tr>";
                                 }
                                 ?>
                             </tbody>
@@ -289,8 +292,9 @@ if ($role == 'student') {
                                     <th>Type</th>
                                     <th>Tool</th>
                                     <th>Student</th>
-                                    <th>Processed By</th>
-                                    <th>Date & Time Borrowed</th> <th>Action Time</th>   
+                                    <th>Subject / Room</th> <th>Processed By</th>
+                                    <th>Date & Time Borrowed</th> 
+                                    <th>Action Time</th>   
                                 </tr>
                             </thead>
                             <tbody>
@@ -313,8 +317,6 @@ if ($role == 'student') {
 
                                 if ($result && mysqli_num_rows($result) > 0) {
                                     while ($row = mysqli_fetch_assoc($result)) {
-                                        
-                                        // Status Logic
                                         if ($row['status'] == 'Returned') {
                                             $type = 'IN (Returned)';
                                             $color = 'success';
@@ -330,40 +332,31 @@ if ($role == 'student') {
                                         }
                                         
                                         $display_action = date('h:i A', strtotime($action_time));
-                                        
-                                        // Borrow Date & Time Logic
                                         $borrow_raw = !empty($row['actual_borrow_date']) ? $row['actual_borrow_date'] : $row['date_requested'];
-                                        // Format: Jan 08, 03:00 PM
                                         $display_borrow = date('M d, h:i A', strtotime($borrow_raw));
-
                                         $processed_by = !empty($row['processed_by']) ? $row['processed_by'] : '-';
                                 ?>
                                     <tr>
                                         <td class="fw-bold text-primary" style="font-size: 0.9rem;">
-                                            <?php echo $row['control_no']; ?>
+                                            <a href="print_slip.php?control_no=<?php echo $row['control_no']; ?>" target="_blank" class="text-decoration-none">
+                                                <?php echo $row['control_no']; ?> <i class="bi bi-box-arrow-up-right small"></i>
+                                            </a>
                                         </td>
-                                        
                                         <td><span class="badge bg-<?php echo $color; ?>"><?php echo $type; ?></span></td>
-                                        
-                                        <td>
-                                            <?php echo $row['tool_name']; ?>
-                                            <div style="font-size:0.75rem" class="text-muted">
-                                                <?php echo $row['subject']; ?> (<?php echo $row['room_no']; ?>)
-                                            </div>
-                                        </td>
-                                        
+                                        <td><?php echo $row['tool_name']; ?></td>
                                         <td><?php echo $row['full_name']; ?></td>
-                                        
+                                        <td>
+                                            <div class="small fw-bold"><?php echo $row['subject']; ?></div>
+                                            <div class="small text-muted"><?php echo $row['room_no']; ?></div>
+                                        </td>
                                         <td><small class="text-muted fst-italic"><?php echo $processed_by; ?></small></td>
-                                        
                                         <td class="text-secondary small fw-bold"><?php echo $display_borrow; ?></td>
-                                        
                                         <td class="fw-bold"><?php echo $display_action; ?></td>
                                     </tr>
                                 <?php 
                                     }
                                 } else { 
-                                    echo "<tr><td colspan='7' class='text-center py-3 text-muted fst-italic'>No transactions yet today.</td></tr>"; 
+                                    echo "<tr><td colspan='8' class='text-center py-3 text-muted fst-italic'>No transactions yet today.</td></tr>"; 
                                 }
                                 ?>
                             </tbody>
@@ -371,23 +364,51 @@ if ($role == 'student') {
                     </div>
                 </div>
             </div>
-        <?php } else { ?> 
 
-            <?php if ($account_status == 'restricted' && !empty($ban_end)) { ?>
+        <?php } else { ?> 
+            
+            <?php 
+            // CASE 1: MANUAL ADMIN BAN
+            if ($account_status == 'restricted') { 
+                $ban_msg = "Your account has been suspended by the Admin.";
+                if (!empty($ban_end)) {
+                    $ban_msg .= "<br>Access Restricted Until: <strong>" . date('F d, Y h:i A', strtotime($ban_end)) . "</strong>";
+                }
+            ?>
                 <div class="card shadow-sm mb-4 border-danger">
                     <div class="card-body text-center text-danger">
-                        <h2 class="display-1"><i class="bi bi-slash-circle"></i></h2>
-                        <h4 class="fw-bold">Account Temporarily Suspended</h4>
+                        <h2 class="display-1"><i class="bi bi-person-x-fill"></i></h2>
+                        <h4 class="fw-bold">Account Suspended</h4>
                         <p class="lead mt-3 text-dark">
-                            Access Restricted Until:<br>
-                            <strong><?php echo date('F d, Y h:i A', strtotime($ban_end)); ?></strong>
+                            <?php echo $ban_msg; ?>
                         </p>
-                        <button class="btn btn-outline-danger btn-sm mt-2" data-bs-toggle="modal" data-bs-target="#banReasonModal">
-                            Why?
+                        <button class="btn btn-outline-danger btn-sm mt-3" data-bs-toggle="modal" data-bs-target="#banReasonModal">
+                            View Admin Message
                         </button>
                     </div>
                 </div>
-            <?php } else { ?>
+
+            <?php 
+            // CASE 2: AUTOMATIC 60+ POINTS BAN
+            } elseif ($my_points >= 60) { 
+            ?>
+                <div class="card shadow-sm mb-4 border-danger">
+                    <div class="card-body text-center">
+                        <h2 class="display-1 text-danger"><i class="bi bi-exclamation-octagon-fill"></i></h2>
+                        <h4 class="fw-bold text-danger">Automatic Account Restriction</h4>
+                        <p class="mt-3">
+                            You have reached the maximum allowed penalty points (<strong><?php echo $my_points; ?> / 60</strong>).
+                        </p>
+                        <div class="alert alert-secondary d-inline-block small">
+                            <i class="bi bi-info-circle"></i> Please visit the Laboratory Office to resolve this issue.
+                        </div>
+                    </div>
+                </div>
+
+            <?php 
+            // CASE 3: NORMAL ACCOUNT
+            } else { 
+            ?>
                 <div class="card shadow-sm mb-4">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -425,9 +446,15 @@ if ($role == 'student') {
                             <h3>Need a Tool?</h3>
                             <p>Browse the catalog and make a request.</p>
                             <?php 
-                            $btn_state = ($account_status == 'restricted') ? 'disabled btn-secondary' : 'btn-light text-primary';
+                            // DISABLE CATALOG IF EITHER BAN IS ACTIVE
+                            $is_banned = ($account_status == 'restricted' || $my_points >= 60);
+                            $btn_state = $is_banned ? 'disabled btn-secondary' : 'btn-light text-primary';
+                            $href = $is_banned ? '#' : 'student_catalog.php';
+                            $btn_text = $is_banned ? 'Catalog Locked' : 'View Catalog';
                             ?>
-                            <a href="student_catalog.php" class="btn <?php echo $btn_state; ?> fw-bold">View Catalog</a>
+                            <a href="<?php echo $href; ?>" class="btn <?php echo $btn_state; ?> fw-bold">
+                                <?php echo $btn_text; ?>
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -495,6 +522,12 @@ if ($role == 'student') {
                 </div>
             </div>
 
+            <div class="mb-4">
+                <a href="student_history.php" class="btn btn-success w-100 py-2 shadow-sm">
+                    <i class="bi bi-chat-left-text-fill me-2"></i> View Past Transactions & Give Feedback
+                </a>
+            </div>                    
+
             <div class="card shadow-sm">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="bi bi-calendar-check"></i> History - <?php echo date('M d, Y'); ?></h5>
@@ -559,7 +592,7 @@ if ($role == 'student') {
                                         <td><?php echo $time; ?></td>
                                         <td class="text-end pe-4"><span class="badge bg-<?php echo $badge; ?> rounded-pill"><?php echo $row['status']; ?></span></td>
                                     </tr>
-                                <?php  
+                                <?php 
                                     }
                                 } else { 
                                     echo "<tr><td colspan='4' class='text-center py-4 text-muted fst-italic'>
@@ -631,6 +664,7 @@ if ($role == 'student') {
                     </div>
                 </div>
             </div>                        
+            
             <div class="modal fade" id="penaltyRulesModal" tabindex="-1">
                 <div class="modal-dialog">
                     <div class="modal-content">

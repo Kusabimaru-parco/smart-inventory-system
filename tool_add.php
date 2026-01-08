@@ -2,35 +2,50 @@
 session_start();
 include "db_conn.php";
 
-// Check if user is admin
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
-    header("Location: index.php");
-    exit();
-}
-
-if (isset($_POST['tool_name']) && isset($_POST['category'])) {
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
     
     $tool_name = mysqli_real_escape_string($conn, $_POST['tool_name']);
-    $category = mysqli_real_escape_string($conn, $_POST['category']);
+    $cat_select = $_POST['category_select'];
+    $final_category = "";
 
-    // 1. GENERATE UNIQUE BARCODE
-    // Format: CategoryCode + RandomNumber (e.g., HT-8293)
-    $prefix = strtoupper(substr($category, 0, 2)); // Get first 2 letters
-    $rand_num = rand(1000, 9999);
-    $barcode = $prefix . "-" . $rand_num;
-
-    // 2. INSERT INTO DATABASE
-    $sql = "INSERT INTO tools (barcode, tool_name, category, status) 
-            VALUES ('$barcode', '$tool_name', '$category', 'Available')";
-
-    if (mysqli_query($conn, $sql)) {
-        header("Location: inventory.php?msg=New tool added successfully! Barcode: $barcode");
+    // 1. Determine Category
+    if ($cat_select == "NEW_CAT_OPTION") {
+        // Use the typed input
+        $final_category = mysqli_real_escape_string($conn, $_POST['new_category_name']);
+        if (empty($final_category)) {
+            $final_category = "General"; // Fallback
+        }
     } else {
-        // Handle error (e.g. duplicate barcode)
-        echo "Error: " . $sql . "<br>" . mysqli_error($conn);
+        // Use existing selection
+        $final_category = mysqli_real_escape_string($conn, $cat_select);
     }
 
-} else {
-    header("Location: inventory.php");
+    // 2. Generate Barcode Prefix (First 2 letters, Uppercase)
+    // Example: "Cutting Tools" -> "CU"
+    $prefix = strtoupper(substr($final_category, 0, 2));
+    
+    // Ensure prefix is alphanumeric (remove spaces/symbols if any)
+    $prefix = preg_replace("/[^A-Z0-9]/", "", $prefix);
+    if(strlen($prefix) < 2) $prefix = "XX"; // Fallback
+
+    // 3. Generate Unique Random 4-digit Number
+    // Example: CU-4821
+    do {
+        $rand_num = rand(1000, 9999);
+        $barcode = $prefix . "-" . $rand_num;
+        
+        // Check uniqueness in DB
+        $check = mysqli_query($conn, "SELECT tool_id FROM tools WHERE barcode='$barcode'");
+    } while (mysqli_num_rows($check) > 0);
+
+    // 4. Insert into Database
+    $sql = "INSERT INTO tools (tool_name, category, barcode, status, created_at) 
+            VALUES ('$tool_name', '$final_category', '$barcode', 'Available', NOW())";
+
+    if (mysqli_query($conn, $sql)) {
+        header("Location: inventory.php?msg=New Tool Added! Barcode: $barcode");
+    } else {
+        header("Location: inventory.php?error=Failed to add tool");
+    }
 }
 ?>
