@@ -23,7 +23,7 @@ require 'PHPMailer/src/SMTP.php';
 // You MUST use a real email here (e.g., a dummy Gmail for your Capstone)
 // If using Gmail, you need an "App Password" (Search: "Google App Password")
 define('SMTP_USER', 'SmartInventoryTest@gmail.com'); 
-define('SMTP_PASS', 'wqqi xvka eazx zndc'); 
+define('SMTP_PASS', 'vrsl gljp ywhb jgiv'); 
 
 function sendEmail($to, $name, $subject, $body) {
     $mail = new PHPMailer(true);
@@ -36,7 +36,7 @@ function sendEmail($to, $name, $subject, $body) {
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
 
-        $mail->setFrom(SMTP_USER, 'Smart Inventory Admin');
+        $mail->setFrom(SMTP_USER, 'Orbitz Admin');
         $mail->addAddress($to, $name);
 
         $mail->isHTML(true);

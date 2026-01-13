@@ -1,0 +1,137 @@
+<?php
+session_start();
+include "db_conn.php";
+
+// Security
+if (!isset($_SESSION['user_id']) || ($_SESSION['role'] != 'admin' && $_SESSION['role'] != 'student_assistant')) {
+    header("Location: index.php");
+    exit();
+}
+
+$search = isset($_GET['search']) ? $_GET['search'] : '';
+?>
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Search Borrower Slip</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body class="bg-light">
+
+    <nav class="navbar navbar-dark bg-dark px-3 mb-4">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1"><i class="bi bi-printer"></i> Print Slip Search</span>
+            <a href="dashboard.php" class="btn btn-outline-light btn-sm">Back to Dashboard</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <form method="GET" class="row g-2 mb-4">
+                    <div class="col-md-9">
+                        <input type="text" name="search" class="form-control form-control-lg" 
+                               placeholder="Enter Control Number (e.g. 20260114-001) or Student Name..." 
+                               value="<?php echo htmlspecialchars($search); ?>">
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-primary btn-lg w-100"><i class="bi bi-search"></i> Search</button>
+                    </div>
+                </form>
+
+                <h5 class="mb-3 text-secondary">
+                    <?php echo ($search != '') ? 'Search Results for: "' . htmlspecialchars($search) . '"' : 'Recent Transactions'; ?>
+                </h5>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle border">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Control No.</th>
+                                <th>Student Name</th>
+                                <th>Date Requested</th>
+                                <th>Status</th>
+                                <th class="text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsBody">
+                            </tbody>
+                    </table>
+                </div>
+
+                <div class="text-center mt-3">
+                    <div id="loadingSpinner" class="spinner-border text-primary" role="status" style="display:none;">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    
+                    <button id="loadMoreBtn" class="btn btn-outline-primary" style="display:none;">
+                        Load More Records <i class="bi bi-chevron-down"></i>
+                    </button>
+                    
+                    <p id="endMessage" class="text-muted small mt-2" style="display:none;">End of results.</p>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function(){
+            let offset = 0;
+            const limit = 25; 
+            let searchTerm = "<?php echo $search; ?>"; // Get search from PHP
+            let isLoading = false;
+
+            // REMOVED "if (searchTerm !== '')" -> NOW IT ALWAYS RUNS
+            loadData();
+
+            function loadData() {
+                if(isLoading) return;
+                isLoading = true;
+                $('#loadingSpinner').show();
+                $('#loadMoreBtn').hide();
+
+                $.ajax({
+                    url: 'fetch_slip_search.php',
+                    type: 'POST',
+                    data: { 
+                        offset: offset,
+                        search: searchTerm
+                    },
+                    success: function(response) {
+                        $('#loadingSpinner').hide();
+                        
+                        // Check if empty
+                        if($.trim(response) === "") {
+                            if(offset === 0) {
+                                $('#resultsBody').html("<tr><td colspan='5' class='text-center py-4 text-muted'>No records found.</td></tr>");
+                            } else {
+                                $('#endMessage').show();
+                            }
+                        } else {
+                            $('#resultsBody').append(response);
+                            offset += limit;
+                            isLoading = false;
+                            $('#loadMoreBtn').show();
+                        }
+                    },
+                    error: function() {
+                        $('#loadingSpinner').hide();
+                        alert("Error loading data.");
+                    }
+                });
+            }
+
+            // Click Handler
+            $('#loadMoreBtn').click(function(){
+                loadData();
+            });
+        });
+    </script>
+
+</body>
+</html>

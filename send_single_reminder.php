@@ -3,8 +3,11 @@
 session_start();
 include "db_conn.php";
 
-// 1. SECURITY: Only Admins allowed
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
+// 1. SECURITY: Only Admin and student assistants allowed
+if (!isset($_SESSION['user_id']) || 
+   ($_SESSION['role'] != 'admin' && $_SESSION['role'] != 'student_assistant')) {
+    
+    // If accessed directly without login, or by a student
     header("Location: index.php");
     exit();
 }
@@ -48,7 +51,7 @@ if (isset($_GET['id'])) {
             $mail->Host       = 'smtp.gmail.com';
             $mail->SMTPAuth   = true;
             $mail->Username   = 'smartinventorytest@gmail.com'; // REPLACE THIS
-            $mail->Password   = 'wqqi xvka eazx zndc';    // REPLACE THIS
+            $mail->Password   = 'vrsl gljp ywhb jgiv';    // REPLACE THIS
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port       = 587;
 

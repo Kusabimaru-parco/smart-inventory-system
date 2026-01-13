@@ -1,2 +1,13 @@
 Email: smartinventorytest@gmail.com
 password: smartinventory123
+
+
+NOTE: Changing the password of a google account deletes the google app password and there are specific files that this system uses it here:
+send_single_reminder
+cron_email.php 
+changepass_email.php 
+
+if password is changed just create a new google app password and recode these files
+
+
+ANOTHER NOTE: This email has a limit of 500 emails a day might switch to professional transactional email service like Brevo (formerly Sendinblue) or SendGrid. 
