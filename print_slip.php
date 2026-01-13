@@ -16,7 +16,6 @@ if (!isset($_GET['control_no'])) {
 $control_no = mysqli_real_escape_string($conn, $_GET['control_no']);
 
 // 1. Get Transaction Details
-// We also fetch 'feedback' here (tr.feedback)
 $sql_header = "SELECT tr.*, u.full_name, u.id_number, u.course_section 
                FROM transactions tr
                JOIN users u ON tr.user_id = u.user_id
@@ -31,9 +30,18 @@ if (mysqli_num_rows($res_header) == 0) {
 
 $head = mysqli_fetch_assoc($res_header);
 
-// Format Data
-$date_borrowed = date('m/d/y', strtotime($head['date_requested'])); 
-$time_borrowed = date('h:i A', strtotime($head['date_requested']));
+// --- UPDATED DATE & TIME LOGIC ---
+// Format: 01/14/26 03:30 PM
+$datetime_borrowed = date('m/d/y h:i A', strtotime($head['date_requested']));
+
+// Check if returned
+if (!empty($head['actual_return_date'])) {
+    $datetime_returned = date('m/d/y h:i A', strtotime($head['actual_return_date']));
+} else {
+    // Placeholder line for manual writing (longer to fit date & time)
+    $datetime_returned = "________________________"; 
+}
+
 $student_name = strtoupper($head['full_name']); 
 $subject = strtoupper($head['subject']);
 $room = $head['room_no'];
@@ -41,7 +49,7 @@ $room = $head['room_no'];
 // Feedback Check
 $feedback_text = !empty($head['feedback']) ? strtoupper($head['feedback']) : "NO REMARKS";
 
-// SAFETY CHECK: If database is NULL, show placeholder
+// SAFETY CHECK
 if (!empty($head['course_section'])) {
     $course_sec = strtoupper($head['course_section']);
 } else {
@@ -96,13 +104,13 @@ $res_tools = mysqli_query($conn, $sql_tools);
 
         .info-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
+            grid-template-columns: 1fr 1fr; /* 2 Columns */
+            gap: 15px; /* Increased gap slightly */
             margin-bottom: 20px;
             font-size: 11pt;
         }
-        .info-line { border-bottom: 1px solid black; display: inline-block; width: 60%; padding-left: 5px;}
-        .label { font-weight: bold; }
+        .info-line { border-bottom: 1px solid black; display: inline-block; padding-left: 5px;}
+        .label { font-weight: bold; white-space: nowrap; }
 
         table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
         th, td { border: 1px solid black; padding: 8px; text-align: center; }
@@ -150,16 +158,18 @@ $res_tools = mysqli_query($conn, $sql_tools);
 
         <div class="info-grid">
             <div><span class="label">Name:</span> <span class="info-line" style="width:70%"><?php echo $student_name; ?></span></div>
-            <div><span class="label">Date:</span> <span class="info-line"><?php echo $date_borrowed; ?></span></div>
+            <div><span class="label">Course/Sec:</span> <span class="info-line" style="width:50%"><?php echo $course_sec; ?></span></div>
             
-            <div><span class="label">Time:</span> <span class="info-line"><?php echo $time_borrowed; ?></span></div>
-            
-            <div><span class="label">Course/Sec:</span> <span class="info-line"><?php echo $course_sec; ?></span></div>
+            <div><span class="label">Date & Time Borrowed:</span> <span class="info-line" style="width:40%"><?php echo $datetime_borrowed; ?></span></div>
+            <div><span class="label">Date & Time Returned:</span> <span class="info-line" style="width:40%"><?php echo $datetime_returned; ?></span></div>
             
             <div style="grid-column: span 2;">
                 <span class="label">Subject:</span> <span class="info-line" style="width: 85%"><?php echo $subject; ?></span>
             </div>
-            <div><span class="label">Room No:</span> <span class="info-line"><?php echo $room; ?></span></div>
+
+            <div style="grid-column: span 2;">
+                <span class="label">Room No:</span> <span class="info-line" style="width:50%"><?php echo $room; ?></span>
+            </div>
         </div>
 
         <table>

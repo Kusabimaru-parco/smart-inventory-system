@@ -7,135 +7,126 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'student') {
     header("Location: index.php");
     exit();
 }
-
-$user_id = $_SESSION['user_id'];
 ?>
 
 <!DOCTYPE html>
 <html>
 <head>
     <title>My Transaction History</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script> <style>
+        @media (max-width: 576px) {
+            .navbar-brand { font-size: 1.1rem; }
+            .btn-sm { font-size: 0.8rem; }
+            .badge { font-size: 0.65em; }
+            .input-group { flex-direction: column; } 
+            .input-group .form-control { width: 100% !important; border-radius: 5px !important; margin-bottom: 8px; }
+            .input-group .btn { width: 100% !important; border-radius: 5px !important; }
+        }
+    </style>
 </head>
 <body class="bg-light">
 
-    <nav class="navbar navbar-dark bg-dark px-4">
-        <span class="navbar-brand mb-0 h1">📜 My History & Feedback</span>
-        <a href="dashboard.php" class="btn btn-outline-light btn-sm">Back to Dashboard</a>
+    <nav class="navbar navbar-dark bg-dark px-3 sticky-top">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1 text-truncate"><i class="bi bi-clock-history"></i> History & Feedback</span>
+            <a href="dashboard.php" class="btn btn-outline-light btn-sm text-nowrap">
+                <i class="bi bi-arrow-left"></i> Dashboard
+            </a>
+        </div>
     </nav>
 
-    <div class="container mt-4">
+    <div class="container mt-4 mb-5" style="max-width: 800px;">
         
         <?php if (isset($_GET['msg'])) { ?>
-            <div class="alert alert-success text-center"><?php echo $_GET['msg']; ?></div>
+            <div class="alert alert-success text-center py-2 shadow-sm mb-3"><?php echo htmlspecialchars($_GET['msg']); ?></div>
         <?php } ?>
 
-        <div class="card shadow-sm">
-            <div class="card-header bg-success text-white">
-                <h5 class="mb-0"><i class="bi bi-chat-left-text-fill"></i> Completed Transactions</h5>
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-success text-white py-3">
+                <h5 class="mb-0 fs-6"><i class="bi bi-check2-circle"></i> Completed Transactions</h5>
             </div>
-            <div class="card-body">
-                <?php
-                // 1. Get Distinct Control Numbers for this student
-                $sql_batches = "SELECT DISTINCT control_no, date_requested 
-                                FROM transactions 
-                                WHERE user_id = '$user_id' 
-                                ORDER BY transaction_id DESC";
-                $res_batches = mysqli_query($conn, $sql_batches);
-
-                if (mysqli_num_rows($res_batches) > 0) {
-                    while ($batch = mysqli_fetch_assoc($res_batches)) {
-                        $c_no = $batch['control_no'];
-                        $date = date('M d, Y', strtotime($batch['date_requested']));
-
-                        // 2. Get Tools and Check Status for this specific batch
-                        $sql_tools = "SELECT t.tool_name, tr.status, tr.feedback 
-                                      FROM transactions tr 
-                                      JOIN tools t ON tr.tool_id = t.tool_id 
-                                      WHERE tr.control_no = '$c_no'";
-                        $res_tools = mysqli_query($conn, $sql_tools);
-
-                        $all_returned = true; // Assume true
-                        $has_feedback = false;
-                        $tool_list = [];
-                        $saved_feedback = "";
-                        $batch_is_cancelled = true; // Assume all cancelled
-
-                        while ($row = mysqli_fetch_assoc($res_tools)) {
-                            $status_color = 'secondary';
-                            if($row['status'] == 'Returned') $status_color = 'success';
-                            if($row['status'] == 'Cancelled') $status_color = 'dark';
-                            if($row['status'] == 'Borrowed') $status_color = 'primary';
-
-                            $tool_list[] = $row['tool_name'] . " <span class='badge bg-$status_color text-wrap' style='font-size:0.7em'>".$row['status']."</span>";
-                            
-                            // Check if ALL tools are returned (or cancelled/declined - which are also 'done')
-                            if ($row['status'] == 'Borrowed' || $row['status'] == 'Pending' || $row['status'] == 'Approved') {
-                                $all_returned = false;
-                            }
-
-                            // Check if at least one item was NOT cancelled
-                            if ($row['status'] != 'Cancelled' && $row['status'] != 'Declined') {
-                                $batch_is_cancelled = false;
-                            }
-
-                            // Check feedback
-                            if (!empty($row['feedback'])) {
-                                $has_feedback = true;
-                                $saved_feedback = $row['feedback'];
-                            }
-                        }
-                        
-                        // Don't show feedback form if the whole batch was just cancelled
-                        if ($batch_is_cancelled) {
-                            $all_returned = false; 
-                        }
-                ?>
-                    <div class="border rounded p-3 mb-3 bg-light">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h6 class="fw-bold text-primary mb-0">
-                                Control No: 
-                                <a href="print_slip.php?control_no=<?php echo $c_no; ?>" target="_blank" class="text-decoration-none">
-                                    <?php echo $c_no; ?> <i class="bi bi-box-arrow-up-right small"></i>
-                                </a>
-                            </h6>
-                            <small class="text-muted"><?php echo $date; ?></small>
-                        </div>
-                        
-                        <div class="mb-2 small">
-                            <strong>Tools:</strong> <br>
-                            <?php echo implode("<br>", $tool_list); ?>
-                        </div>
-
-                        <?php if ($all_returned && !$has_feedback) { ?>
-                            <form action="submit_feedback.php" method="POST" class="mt-3 border-top pt-2">
-                                <label class="form-label small fw-bold text-success">
-                                    <i class="bi bi-check-circle-fill"></i> Transaction Complete. Please leave remarks:
-                                </label>
-                                <input type="hidden" name="control_no" value="<?php echo $c_no; ?>">
-                                <div class="input-group">
-                                    <input type="text" name="feedback" class="form-control form-control-sm" placeholder="Ex. Tools working great, returned in good condition." required>
-                                    <button type="submit" class="btn btn-success btn-sm">Submit Feedback</button>
-                                </div>
-                            </form>
-
-                        <?php } elseif ($has_feedback) { ?>
-                            <div class="alert alert-secondary py-2 px-3 mt-2 mb-0 small">
-                                <strong><i class="bi bi-chat-quote-fill"></i> Your Remarks:</strong> 
-                                <?php echo $saved_feedback; ?>
-                            </div>
-                        <?php } ?>
+            
+            <div class="card-body p-2 p-md-3">
+                <div id="historyContainer">
                     </div>
-                <?php 
-                    }
-                } else {
-                    echo "<p class='text-muted text-center p-3'>No transactions yet.</p>";
-                }
-                ?>
+
+                <div id="loadingSpinner" class="text-center py-3" style="display:none;">
+                    <div class="spinner-border text-success" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+
+                <div class="text-center mt-3">
+                    <button id="loadMoreBtn" class="btn btn-outline-success btn-sm px-4 fw-bold" style="display:none;">
+                        Load More Records <i class="bi bi-chevron-down"></i>
+                    </button>
+                    <p id="endMessage" class="text-muted small mt-2" style="display:none;">No more records to show.</p>
+                </div>
             </div>
         </div>
+        
+        <div style="height: 50px;"></div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        $(document).ready(function(){
+            let offset = 0;
+            const limit = 3; // Must match the limit in PHP
+            let isLoading = false;
+
+            // Function to fetch data
+            function loadHistory() {
+                if (isLoading) return;
+                isLoading = true;
+                $('#loadingSpinner').show();
+                $('#loadMoreBtn').hide();
+
+                $.ajax({
+                    url: 'fetch_history.php',
+                    type: 'POST',
+                    data: { offset: offset },
+                    success: function(response) {
+                        $('#loadingSpinner').hide();
+                        
+                        // Check if response is empty (End of records)
+                        if ($.trim(response) === "") {
+                            if(offset > 0) {
+                                $('#endMessage').show(); // End of list
+                            } else {
+                                $('#historyContainer').html("<p class='text-center text-muted py-4'>No transactions found.</p>");
+                            }
+                        } else {
+                            // Append new cards
+                            $('#historyContainer').append(response);
+                            offset += limit;
+                            isLoading = false;
+                            
+                            // Determine if we should show the Load More button again
+                            // Ideally, we check if the returned count < limit, but simple way is just show it
+                            // and if the next click returns empty, we hide it then.
+                            $('#loadMoreBtn').show();
+                        }
+                    },
+                    error: function() {
+                        $('#loadingSpinner').hide();
+                        alert("Failed to load history. Please try again.");
+                    }
+                });
+            }
+
+            // Load initial batch
+            loadHistory();
+
+            // Button Click
+            $('#loadMoreBtn').click(function(){
+                loadHistory();
+            });
+        });
+    </script>
 </body>
 </html>
