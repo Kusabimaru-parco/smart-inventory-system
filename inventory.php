@@ -13,7 +13,7 @@ if (!isset($_SESSION['user_id']) ||
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 $category = isset($_GET['category']) ? mysqli_real_escape_string($conn, $_GET['category']) : '';
 
-// 1. Get Distinct Categories for Dropdown & Manager
+// 1. Get Distinct Categories
 $cat_sql = "SELECT DISTINCT category FROM tools ORDER BY category ASC";
 $cat_res = mysqli_query($conn, $cat_sql);
 $categories = [];
@@ -21,8 +21,8 @@ while($c_row = mysqli_fetch_assoc($cat_res)) {
     $categories[] = $c_row['category'];
 }
 
-// 2. Build Tool Query
-$sql = "SELECT * FROM tools WHERE 1=1"; 
+// 2. Build Tool Query (STRICTLY HIDE ARCHIVED)
+$sql = "SELECT * FROM tools WHERE status NOT IN ('Archived', 'Deleted', 'Lost')"; 
 
 if ($search != '') {
     $sql .= " AND (tool_name LIKE '%$search%' OR barcode LIKE '%$search%')";
@@ -56,13 +56,13 @@ $result = mysqli_query($conn, $sql);
         
         <?php if (isset($_GET['msg'])) { ?>
             <div class="alert alert-success alert-dismissible fade show text-center">
-                <?php echo $_GET['msg']; ?>
+                <?php echo htmlspecialchars($_GET['msg']); ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php } ?>
         <?php if (isset($_GET['error'])) { ?>
             <div class="alert alert-danger alert-dismissible fade show text-center">
-                <?php echo $_GET['error']; ?>
+                <?php echo htmlspecialchars($_GET['error']); ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php } ?>
@@ -87,10 +87,15 @@ $result = mysqli_query($conn, $sql);
             <div class="col-md-8">
                 <div class="card shadow-sm h-100">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between mb-3">
+                        <div class="d-flex justify-content-between mb-3 flex-wrap gap-2">
                             <h5 class="card-title text-success"><i class="bi bi-tools"></i> Inventory List</h5>
-                            <div>
-                                <button type="button" class="btn btn-outline-secondary btn-sm me-1" data-bs-toggle="modal" data-bs-target="#manageCatModal">
+                            
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-danger btn-sm position-relative" data-bs-toggle="modal" data-bs-target="#archivedToolsModal">
+                                    <i class="bi bi-trash3"></i> Bin / Deleted
+                                </button>
+                                
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#manageCatModal">
                                     <i class="bi bi-tags"></i> Categories
                                 </button>
                                 <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#addToolModal">
@@ -154,7 +159,7 @@ $result = mysqli_query($conn, $sql);
                                     <td class="text-end pe-4">
                                         <a href="tool_action.php?delete_id=<?php echo $row['tool_id']; ?>" 
                                            class="btn btn-sm btn-outline-danger"
-                                           onclick="return confirm('Are you sure you want to permanently remove this tool?');">
+                                           onclick="return confirm('Move this tool to the Bin?');">
                                             <i class="bi bi-trash"></i>
                                         </a>
                                     </td>
@@ -162,7 +167,7 @@ $result = mysqli_query($conn, $sql);
                             <?php 
                                 }
                             } else {
-                                echo "<tr><td colspan='6' class='text-center py-4 text-muted'>No tools found matching your filters.</td></tr>";
+                                echo "<tr><td colspan='6' class='text-center py-4 text-muted'>No active tools found.</td></tr>";
                             }
                             ?>
                         </tbody>
@@ -201,10 +206,16 @@ $result = mysqli_query($conn, $sql);
                             <input type="text" name="new_category_name" class="form-control" placeholder="Ex. Cutting Tools">
                         </div>
 
+                        <div class="mb-3">
+                            <label>Quantity</label>
+                            <input type="number" name="quantity" class="form-control" value="1" min="1" required>
+                            <small class="text-muted">The system will generate unique barcodes for each item.</small>
+                        </div>
+
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        <button type="submit" class="btn btn-success">Save Tool</button>
+                        <button type="submit" class="btn btn-success">Save Tools</button>
                     </div>
                 </form>
             </div>
@@ -225,7 +236,7 @@ $result = mysqli_query($conn, $sql);
                             <li class="list-group-item d-flex justify-content-between align-items-center">
                                 <?php echo $cat; ?>
                                 
-                                <?php if ($cat != 'General') { // Protect 'General' from deletion ?>
+                                <?php if ($cat != 'General') { ?>
                                     <a href="category_delete.php?cat=<?php echo urlencode($cat); ?>" 
                                        class="btn btn-sm btn-outline-danger"
                                        onclick="return confirm('⚠️ DELETE CATEGORY: <?php echo $cat; ?>?\n\nTools will NOT be deleted. They will be moved to \'General\'.');">
@@ -237,6 +248,62 @@ $result = mysqli_query($conn, $sql);
                             </li>
                         <?php } ?>
                     </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="archivedToolsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title"><i class="bi bi-trash3"></i> Deleted / Archived Tools</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-striped mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3">Tool Name</th>
+                                    <th>Category</th>
+                                    <th>Barcode</th>
+                                    <th class="text-end pe-3">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php 
+                                // Query specifically for 'Archived'
+                                $arch_sql = "SELECT * FROM tools WHERE status = 'Archived' ORDER BY tool_name ASC";
+                                $arch_res = mysqli_query($conn, $arch_sql);
+
+                                if (mysqli_num_rows($arch_res) > 0) {
+                                    while ($arow = mysqli_fetch_assoc($arch_res)) {
+                                ?>
+                                    <tr>
+                                        <td class="ps-3 fw-bold"><?php echo $arow['tool_name']; ?></td>
+                                        <td><?php echo $arow['category']; ?></td>
+                                        <td><code><?php echo $arow['barcode']; ?></code></td>
+                                        <td class="text-end pe-3">
+                                            <a href="tool_action.php?restore_id=<?php echo $arow['tool_id']; ?>" 
+                                               class="btn btn-sm btn-success"
+                                               onclick="return confirm('Restore this tool to the main inventory?');">
+                                                <i class="bi bi-arrow-counterclockwise"></i> Restore
+                                            </a>
+                                        </td>
+                                    </tr>
+                                <?php 
+                                    }
+                                } else {
+                                    echo "<tr><td colspan='4' class='text-center py-4 text-muted'>Bin is empty.</td></tr>";
+                                }
+                                ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>
