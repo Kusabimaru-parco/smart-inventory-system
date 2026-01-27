@@ -1,58 +1,38 @@
 <?php
 session_start();
-include "db_conn.php"; // <--- ADDED: Required for the security check
 
-// Initialize cart if not exists
 if (!isset($_SESSION['cart'])) {
     $_SESSION['cart'] = [];
 }
 
-if (isset($_GET['action']) && isset($_GET['id'])) {
+// --- BULK ADD LOGIC ---
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'add_bulk') {
     
-    $tool_id = $_GET['id'];
-    $action = $_GET['action'];
+    $name = $_POST['tool_name'];
+    $cat = $_POST['category'];
+    $qty = (int)$_POST['qty'];
 
-    if ($action == 'add') {
-        
-        // --- SECURITY CHECK: CONCURRENCY (NEW) ---
-        // Check if the tool was just taken by someone else 
-        // (while this user was looking at the catalog).
-        $check_sql = "SELECT tool_id FROM transactions 
-                      WHERE tool_id = '$tool_id' 
-                      AND status IN ('Pending', 'Approved')";
-                      
-        $check_result = mysqli_query($conn, $check_sql);
-
-        if (mysqli_num_rows($check_result) > 0) {
-            // Tool is logically unavailable
-            header("Location: student_catalog.php?error=Sorry! That tool was just requested by another student.");
-            exit();
-        }
-        // -----------------------------------------
-
-        // Check if already in cart
-        if (!in_array($tool_id, $_SESSION['cart'])) {
-            $_SESSION['cart'][] = $tool_id;
-            $msg = "Tool added to cart!";
-        } else {
-            $msg = "Tool is already in your cart.";
-        }
+    // Update Session: [ 'Screwdriver' => ['qty'=>2, 'cat'=>'Hand Tool'] ]
+    if (isset($_SESSION['cart'][$name])) {
+        $_SESSION['cart'][$name]['qty'] += $qty;
+    } else {
+        $_SESSION['cart'][$name] = [
+            'category' => $cat,
+            'qty' => $qty
+        ];
     }
-
-    if ($action == 'remove') {
-        // Find position and remove
-        $key = array_search($tool_id, $_SESSION['cart']);
-        if ($key !== false) {
-            unset($_SESSION['cart'][$key]);
-            // Re-index array
-            $_SESSION['cart'] = array_values($_SESSION['cart']);
-        }
-        $msg = "Item removed.";
-        header("Location: cart.php?msg=$msg");
-        exit();
-    }
+    
+    header("Location: student_catalog.php?msg=Added $qty $name(s) to cart");
+    exit();
 }
 
-// Redirect back to catalog
-header("Location: student_catalog.php?msg=$msg");
+// --- REMOVE ITEM ---
+if (isset($_GET['action']) && $_GET['action'] == 'remove' && isset($_GET['name'])) {
+    $name = urldecode($_GET['name']); // Use Name as ID
+    unset($_SESSION['cart'][$name]);
+    header("Location: cart.php?msg=Item removed");
+    exit();
+}
+
+header("Location: student_catalog.php");
 ?>

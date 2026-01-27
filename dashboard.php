@@ -52,13 +52,31 @@ if ($role == 'student') {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="assets/css/message_request.css">
     
-    <style>
+<style>
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            padding: 0; /* Remove default bootstrap padding to fit logo better */
+        }
+
+        .logo-icon img {
+            /* KEY FIX: Control height, not width. 
+               This ensures it matches the navbar size. */
+            height: 50px; 
+            width: auto; 
+            display: block;
+            object-fit: contain; /* Prevents stretching */
+        }
+
         /* MOBILE OPTIMIZATIONS */
         @media (max-width: 768px) {
             .card-text { display: none; } 
             .table { font-size: 0.85rem; }
             .navbar .btn { width: 100%; margin-bottom: 5px; }
             .dashboard-icon { font-size: 1.5rem; display: block; margin-bottom: 5px; }
+            
+            /* Optional: Slightly smaller logo on mobile if needed */
+            .logo-icon img { height: 40px; }
         }
     </style>
 </head>
@@ -66,8 +84,11 @@ if ($role == 'student') {
 
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark px-3">
         <div class="container-fluid">
-            <span class="navbar-brand mb-0 h1">🛠️ Smart Inventory</span>
-            
+            <a class="navbar-brand" href="dashboard.php">
+                <div class="logo-icon">
+                    <img src="LOGO-ORBITZ.png" alt="Inventory System Logo">
+                </div>
+            </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -185,7 +206,6 @@ if ($role == 'student') {
                                     <th>Borrower</th>
                                     <th>Tool</th>
                                     <th class="d-none d-md-table-cell">Subject / Room</th> 
-                                    <th class="d-none d-md-table-cell">Barcode</th> 
                                     <th>Status</th>
                                     <th>Action</th>
                                 </tr>
@@ -211,7 +231,7 @@ if ($role == 'student') {
                                             <div class="small fw-bold"><?php echo $row_pu['subject']; ?></div>
                                             <div class="small text-muted"><?php echo $row_pu['room_no']; ?></div>
                                         </td>
-                                        <td class="d-none d-md-table-cell"><code><?php echo $row_pu['barcode']; ?></code></td> 
+                             
                                         
                                         <td><span class="badge bg-warning text-dark">Ready</span></td>
                                         <td>
@@ -541,7 +561,7 @@ if ($role == 'student') {
                                             <br>
                                             <small class="text-muted">
                                                 ID: <span class="text-primary fw-bold"><?php echo $row['control_no']; ?></span> | 
-                                                <span>Barcode: <code><?php echo $row['barcode']; ?></code></span>
+                                                
                                             </small>
                                             <div class="small mt-1">
                                                 <span class="badge bg-<?php echo $badge_class; ?> rounded-pill"><?php echo $msg; ?></span>

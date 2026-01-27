@@ -1,11 +1,8 @@
 <?php 
 session_start();
-include "db_conn.php";
-
 if (!isset($_SESSION['user_id'])) header("Location: index.php");
 
 $cart_items = isset($_SESSION['cart']) ? $_SESSION['cart'] : [];
-$ids = implode(',', $cart_items); // Convert array [1,2,3] to string "1,2,3" for SQL
 ?>
 
 <!DOCTYPE html>
@@ -16,7 +13,6 @@ $ids = implode(',', $cart_items); // Convert array [1,2,3] to string "1,2,3" for
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <style>
-        /* Mobile Tweaks */
         @media (max-width: 576px) {
             .container { padding-left: 10px; padding-right: 10px; }
             .card-header h4 { font-size: 1.2rem; }
@@ -36,7 +32,8 @@ $ids = implode(',', $cart_items); // Convert array [1,2,3] to string "1,2,3" for
                 </a>
             </div>
             
-            <div class="card-body p-3 p-md-4"> <?php if (empty($cart_items)): ?>
+            <div class="card-body p-3 p-md-4">
+                <?php if (empty($cart_items)): ?>
                     <div class="text-center py-5">
                         <div class="mb-3 text-muted display-1"><i class="bi bi-cart-x"></i></div>
                         <h4 class="text-muted">Your cart is empty.</h4>
@@ -51,27 +48,28 @@ $ids = implode(',', $cart_items); // Convert array [1,2,3] to string "1,2,3" for
                                 <thead class="table-light">
                                     <tr>
                                         <th>Tool Name</th>
-                                        <th class="d-none d-sm-table-cell">Category</th> <th class="d-none d-md-table-cell">Barcode</th>  <th class="text-end">Action</th>
+                                        <th class="d-none d-sm-table-cell">Category</th>
+                                        <th>Quantity</th> 
+                                        <th class="text-end">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php
-                                    $sql = "SELECT * FROM tools WHERE tool_id IN ($ids)";
-                                    $result = mysqli_query($conn, $sql);
-                                    while ($row = mysqli_fetch_assoc($result)) {
+                                    foreach ($cart_items as $name => $details) {
                                     ?>
                                         <tr>
                                             <td>
-                                                <div class="fw-bold text-primary"><?php echo $row['tool_name']; ?></div>
-                                                <div class="d-sm-none small text-muted"><?php echo $row['category']; ?></div>
-                                                <div class="d-md-none small text-secondary fst-italic"><?php echo $row['barcode']; ?></div>
+                                                <div class="fw-bold text-primary"><?php echo $name; ?></div>
+                                                <div class="d-sm-none small text-muted"><?php echo $details['category']; ?></div>
                                             </td>
-                                            <td class="d-none d-sm-table-cell"><?php echo $row['category']; ?></td>
-                                            <td class="d-none d-md-table-cell"><code><?php echo $row['barcode']; ?></code></td>
+                                            <td class="d-none d-sm-table-cell"><?php echo $details['category']; ?></td>
+                                            <td>
+                                                <span class="badge bg-secondary fs-6"><?php echo $details['qty']; ?></span>
+                                            </td>
                                             <td class="text-end">
-                                                <a href="cart_action.php?action=remove&id=<?php echo $row['tool_id']; ?>" 
+                                                <a href="cart_action.php?action=remove&name=<?php echo urlencode($name); ?>" 
                                                    class="btn btn-sm btn-outline-danger" title="Remove Item">
-                                                   <i class="bi bi-trash"></i> <span class="d-none d-sm-inline">Remove</span>
+                                                    <i class="bi bi-trash"></i> <span class="d-none d-sm-inline">Remove</span>
                                                 </a>
                                             </td>
                                         </tr>
@@ -106,7 +104,7 @@ $ids = implode(',', $cart_items); // Convert array [1,2,3] to string "1,2,3" for
 
                         <div class="d-grid mt-4 pt-2">
                             <button type="submit" class="btn btn-success btn-lg fw-bold shadow-sm">
-                                Confirm Request (<?php echo count($cart_items); ?> Items)
+                                Confirm Request
                             </button>
                         </div>
 

@@ -2,74 +2,76 @@
 session_start();
 include "db_conn.php";
 
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_SESSION['cart']) && !empty($_SESSION['cart'])) {
+if (!isset($_SESSION['user_id']) || empty($_SESSION['cart'])) {
+    header("Location: index.php");
+    exit();
+}
+
+$user_id = $_SESSION['user_id'];
+$subject = mysqli_real_escape_string($conn, $_POST['subject']);
+$room_no = mysqli_real_escape_string($conn, $_POST['room_no']);
+$return_date = mysqli_real_escape_string($conn, $_POST['return_date']);
+
+// --- 1. GENERATE SEQUENTIAL CONTROL NUMBER (YYYY-MM-DD-COUNT) ---
+
+$today = date('Y-m-d');
+
+// Count how many UNIQUE requests (control numbers) exist for TODAY
+$count_sql = "SELECT COUNT(DISTINCT control_no) as daily_count 
+              FROM transactions 
+              WHERE DATE(date_requested) = '$today'";
+
+$count_res = mysqli_query($conn, $count_sql);
+$count_row = mysqli_fetch_assoc($count_res);
+
+// Increment by 1
+$next_sequence = $count_row['daily_count'] + 1;
+
+// Format: 2026-01-27-1
+$control_no = $today . '-' . $next_sequence;
+
+// ---------------------------------------------------------------
+
+$success_count = 0;
+
+// 2. Loop through cart items
+foreach ($_SESSION['cart'] as $tool_name => $details) {
+    $qty_needed = intval($details['qty']);
+    $safe_name = mysqli_real_escape_string($conn, $tool_name);
+
+    // 3. Find SPECIFIC available tool IDs for this name
+    // Logic: Get X tools that are NOT currently Pending/Approved/Borrowed
+    $sql = "SELECT tool_id FROM tools 
+            WHERE tool_name = '$safe_name' 
+            AND status = 'Available' 
+            AND tool_id NOT IN (
+                SELECT tool_id FROM transactions WHERE status IN ('Pending', 'Approved', 'Borrowed')
+            )
+            LIMIT $qty_needed";
     
-    $user_id = $_SESSION['user_id'];
-    $return_date = $_POST['return_date'];
-    
-    // --- 1. NEW: CAPTURE SUBJECT AND ROOM ---
-    // We use mysqli_real_escape_string to prevent SQL injection issues with special characters
-    $subject = mysqli_real_escape_string($conn, $_POST['subject']);
-    $room_no = mysqli_real_escape_string($conn, $_POST['room_no']);
-    // ----------------------------------------
-    
-    // Use the current date and time for the request
-    $borrow_date = date('Y-m-d'); 
-    $date_requested = date('Y-m-d H:i:s'); // Exact timestamp for ordering
+    $result = mysqli_query($conn, $sql);
 
-    $cart_items = $_SESSION['cart'];
-
-    // 2. Security Check: Is User Banned?
-    $check_user = mysqli_query($conn, "SELECT penalty_points FROM users WHERE user_id='$user_id'");
-    $user_data = mysqli_fetch_assoc($check_user);
-    if ($user_data['penalty_points'] >= 60) {
-        die("Account Restricted. Checkout failed.");
-    }
-
-    // --- 3. GENERATE UNIQUE CONTROL NUMBER (Year-Month-Day-Sequence) ---
-    // Format: 2026-01-08-1 (Reset sequence daily)
-    
-    $today_str = date('Y-m-d'); 
-
-    $count_sql = "SELECT COUNT(*) as total FROM transactions WHERE DATE(date_requested) = '$today_str'";
-    $count_res = mysqli_query($conn, $count_sql);
-    $count_row = mysqli_fetch_assoc($count_res);
-
-    // Increment by 1 for the new transaction
-    $new_sequence = $count_row['total'] + 1;
-
-    // Create the Control No string
-    $control_no = $today_str . "-" . $new_sequence;
-    // -------------------------------------------------------------------
-
-    // 4. Loop Insert
-    foreach ($cart_items as $tool_id) {
+    // 4. Create a Transaction for EACH found tool
+    while ($row = mysqli_fetch_assoc($result)) {
+        $t_id = $row['tool_id'];
         
-        // Double check status is still 'Available' logically (not taken by pending/approved)
-        $check_tool_sql = "SELECT tool_id FROM transactions 
-                           WHERE tool_id = '$tool_id' 
-                           AND status IN ('Pending', 'Approved')";
-        $check_tool = mysqli_query($conn, $check_tool_sql);
+        $insert = "INSERT INTO transactions 
+                   (user_id, tool_id, borrow_date, return_date, status, control_no, subject, room_no, date_requested) 
+                   VALUES 
+                   ('$user_id', '$t_id', NULL, '$return_date', 'Pending', '$control_no', '$subject', '$room_no', NOW())";
         
-        if (mysqli_num_rows($check_tool) == 0) {
-            
-            // --- UPDATED SQL QUERY ---
-            // Added 'subject' and 'room_no' to columns and values
-            $sql = "INSERT INTO transactions (user_id, tool_id, borrow_date, return_date, status, date_requested, control_no, subject, room_no) 
-                    VALUES ('$user_id', '$tool_id', '$borrow_date', '$return_date', 'Pending', '$date_requested', '$control_no', '$subject', '$room_no')";
-            
-            if (!mysqli_query($conn, $sql)) {
-                // Optional: Handle error (e.g., log it)
-            }
+        if (mysqli_query($conn, $insert)) {
+            $success_count++;
         }
     }
+}
 
-    // 5. Clear Cart & Redirect
+// 5. Cleanup
+if ($success_count > 0) {
     unset($_SESSION['cart']);
     header("Location: dashboard.php?msg=Request Submitted! Control No: $control_no");
-    exit();
-
 } else {
-    header("Location: cart.php");
+    // If tools ran out while browsing
+    header("Location: student_catalog.php?error=Failed to process request. Items might be unavailable.");
 }
 ?>
