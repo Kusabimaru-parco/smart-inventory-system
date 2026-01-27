@@ -30,15 +30,12 @@ if (mysqli_num_rows($res_header) == 0) {
 
 $head = mysqli_fetch_assoc($res_header);
 
-// --- UPDATED DATE & TIME LOGIC ---
-// Format: 01/14/26 03:30 PM
+// --- DATE & TIME LOGIC ---
 $datetime_borrowed = date('m/d/y h:i A', strtotime($head['date_requested']));
 
-// Check if returned
 if (!empty($head['actual_return_date'])) {
     $datetime_returned = date('m/d/y h:i A', strtotime($head['actual_return_date']));
 } else {
-    // Placeholder line for manual writing (longer to fit date & time)
     $datetime_returned = "________________________"; 
 }
 
@@ -46,10 +43,19 @@ $student_name = strtoupper($head['full_name']);
 $subject = strtoupper($head['subject']);
 $room = $head['room_no'];
 
-// Feedback Check
-$feedback_text = !empty($head['feedback']) ? strtoupper($head['feedback']) : "NO REMARKS";
+// --- REMARKS LOGIC ---
+if (!empty($head['feedback'])) {
+    $feedback_text = strtoupper($head['feedback']);
+} else {
+    $feedback_text = "&nbsp;"; 
+}
 
-// SAFETY CHECK
+if (isset($head['admin_remarks']) && !empty($head['admin_remarks'])) {
+    $admin_remarks = strtoupper($head['admin_remarks']);
+} else {
+    $admin_remarks = "&nbsp;"; 
+}
+
 if (!empty($head['course_section'])) {
     $course_sec = strtoupper($head['course_section']);
 } else {
@@ -64,6 +70,19 @@ $sql_tools = "SELECT t.tool_name, t.barcode
               JOIN tools t ON tr.tool_id = t.tool_id
               WHERE tr.control_no = '$control_no'";
 $res_tools = mysqli_query($conn, $sql_tools);
+
+$all_tools = [];
+while ($row = mysqli_fetch_assoc($res_tools)) {
+    $all_tools[] = $row;
+}
+
+// 3. Split into pages (Limit 8 tools per page)
+$tools_per_page = 8;
+$pages = array_chunk($all_tools, $tools_per_page);
+
+if (empty($pages)) {
+    $pages = [[]];
+}
 ?>
 
 <!DOCTYPE html>
@@ -73,6 +92,7 @@ $res_tools = mysqli_query($conn, $sql_tools);
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { font-family: 'Times New Roman', serif; background: #555; }
+        
         .paper {
             width: 800px;
             background: white;
@@ -80,14 +100,30 @@ $res_tools = mysqli_query($conn, $sql_tools);
             padding: 40px;
             box-shadow: 0 0 10px rgba(0,0,0,0.5);
             min-height: 1000px; 
+            position: relative; /* Essential for absolute positioning of logo */
+            page-break-after: always;
         }
-        .header-text { text-align: center; line-height: 1.2; }
+
+        .paper:last-child {
+            page-break-after: auto;
+        }
+
+        /* LOGO STYLING */
+        .pup-logo {
+            position: absolute;
+            top: 45px;
+            left: 50px;
+            width: 90px; /* Adjust size as needed */
+            height: auto;
+        }
+
+        .header-text { text-align: center; line-height: 1.2; margin-bottom: 30px; }
         .univ-name { font-weight: bold; font-size: 14pt; }
         .sub-name { font-size: 10pt; }
         
         .control-no-box {
             text-align: right;
-            margin-top: 20px;
+            margin-top: 10px;
             font-size: 10pt;
             border-bottom: 1px solid black;
             padding-bottom: 5px;
@@ -104,8 +140,8 @@ $res_tools = mysqli_query($conn, $sql_tools);
 
         .info-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr; /* 2 Columns */
-            gap: 15px; /* Increased gap slightly */
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
             margin-bottom: 20px;
             font-size: 11pt;
         }
@@ -119,16 +155,25 @@ $res_tools = mysqli_query($conn, $sql_tools);
         .feedback-box {
             border: 1px solid black;
             padding: 10px;
-            margin-bottom: 30px;
+            margin-bottom: 15px;
             font-size: 10pt;
             text-align: left;
+            min-height: 45px; 
         }
 
-        .disclaimer { font-size: 9pt; font-style: italic; margin-bottom: 30px; }
+        .disclaimer { font-size: 9pt; font-style: italic; margin-bottom: 30px; margin-top: 20px; }
+
+        .page-count {
+            position: absolute;
+            bottom: 20px;
+            right: 40px;
+            font-size: 9pt;
+            color: #666;
+        }
 
         @media print {
             body { background: white; margin: 0; }
-            .paper { box-shadow: none; width: 100%; margin: 0; padding: 20px; }
+            .paper { box-shadow: none; width: 100%; margin: 0; padding: 20px; min-height: 98vh; }
             .no-print { display: none; }
         }
     </style>
@@ -140,14 +185,21 @@ $res_tools = mysqli_query($conn, $sql_tools);
         <button onclick="window.close()" class="btn btn-secondary">Close</button>
     </div>
 
+    <?php 
+    $total_pages = count($pages);
+    foreach ($pages as $index => $tools_on_page) {
+        $page_num = $index + 1;
+    ?>
+
     <div class="paper">
-        <div class="clearfix">
-            <div class="header-text">
-                <div class="univ-name">POLYTECHNIC UNIVERSITY OF THE PHILIPPINES</div>
-                <div class="sub-name">OFFICE OF THE VICE PRESIDENT FOR ACADEMIC AFFAIRS</div>
-                <div class="sub-name fw-bold">INSTITUTE OF TECHNOLOGY</div>
-                <div class="sub-name">LABORATORY OFFICE</div>
-            </div>
+        
+        <img src="puplogo.png" class="pup-logo" alt="PUP Logo">
+
+        <div class="header-text">
+            <div class="univ-name">POLYTECHNIC UNIVERSITY OF THE PHILIPPINES</div>
+            <div class="sub-name">OFFICE OF THE VICE PRESIDENT FOR ACADEMIC AFFAIRS</div>
+            <div class="sub-name fw-bold">INSTITUTE OF TECHNOLOGY</div>
+            <div class="sub-name">LABORATORY OFFICE</div>
         </div>
 
         <div class="control-no-box">
@@ -181,9 +233,7 @@ $res_tools = mysqli_query($conn, $sql_tools);
             </thead>
             <tbody>
                 <?php 
-                $count = 0;
-                while($tool = mysqli_fetch_assoc($res_tools)) {
-                    $count++;
+                foreach($tools_on_page as $tool) {
                 ?>
                 <tr>
                     <td style="text-align: left; padding-left: 15px;"><?php echo strtoupper($tool['tool_name']); ?></td>
@@ -191,7 +241,10 @@ $res_tools = mysqli_query($conn, $sql_tools);
                 </tr>
                 <?php } ?>
                 
-                <?php for($i=0; $i < (5-$count); $i++) { ?>
+                <?php 
+                $empty_rows = $tools_per_page - count($tools_on_page);
+                for($i=0; $i < $empty_rows; $i++) { 
+                ?>
                 <tr>
                     <td>&nbsp;</td>
                     <td></td>
@@ -200,16 +253,21 @@ $res_tools = mysqli_query($conn, $sql_tools);
             </tbody>
         </table>
 
-        <div style="font-weight: bold; margin-bottom: 5px;">REMARKS / FEEDBACK:</div>
+        <div style="font-weight: bold; margin-bottom: 2px;">STUDENT'S REMARKS / FEEDBACK:</div>
         <div class="feedback-box">
             <?php echo $feedback_text; ?>
+        </div>
+
+        <div style="font-weight: bold; margin-bottom: 2px;">ADMIN'S REMARKS (Condition / Status):</div>
+        <div class="feedback-box">
+            <?php echo $admin_remarks; ?>
         </div>
 
         <div class="disclaimer">
             I shall take full responsibility/accountability for any tools and equipment I borrowed. Likewise, I undertake that I will be liable for any loss or damage of the items above.
         </div>
 
-        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 50px;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 40px;">
             
             <div style="text-align: center; width: 40%;">
                 <br><br> 
@@ -225,7 +283,13 @@ $res_tools = mysqli_query($conn, $sql_tools);
 
         </div>
 
+        <div class="page-count">
+            Page <?php echo $page_num; ?> of <?php echo $total_pages; ?>
+        </div>
+
     </div>
+
+    <?php } ?>
 
 </body>
 </html>

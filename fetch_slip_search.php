@@ -1,56 +1,60 @@
 <?php
-session_start();
 include "db_conn.php";
 
-// Security
-if (!isset($_SESSION['user_id']) || ($_SESSION['role'] != 'admin' && $_SESSION['role'] != 'student_assistant')) {
-    exit("Access Denied");
-}
-
+$offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
 $search = isset($_POST['search']) ? mysqli_real_escape_string($conn, $_POST['search']) : '';
 $limit = 25;
-$offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
 
-// REMOVED: if ($search == '') exit();  <-- THIS WAS THE CULPRIT
+// Fetch unique transactions by Control Number
+// Added 'admin_remarks' to the SELECT list
+$sql = "SELECT t.control_no, u.full_name, t.date_requested, t.status, t.admin_remarks
+        FROM transactions t
+        JOIN users u ON t.user_id = u.user_id
+        WHERE 1=1";
 
-// SQL Construction
-$sql = "SELECT tr.control_no, tr.date_requested, tr.status, u.full_name 
-        FROM transactions tr
-        JOIN users u ON tr.user_id = u.user_id";
-
-// Only add WHERE clause if searching
 if ($search != '') {
-    $sql .= " WHERE tr.control_no LIKE '%$search%' OR u.full_name LIKE '%$search%'";
+    $sql .= " AND (t.control_no LIKE '%$search%' OR u.full_name LIKE '%$search%')";
 }
 
-// Group & Order
-$sql .= " GROUP BY tr.control_no 
-          ORDER BY tr.transaction_id DESC
-          LIMIT $limit OFFSET $offset";
+// Group by Control No to show 1 row per slip
+$sql .= " GROUP BY t.control_no ORDER BY t.transaction_id DESC LIMIT $offset, $limit";
 
 $result = mysqli_query($conn, $sql);
 
 if (mysqli_num_rows($result) > 0) {
     while ($row = mysqli_fetch_assoc($result)) {
-        $badge = 'secondary';
-        if($row['status'] == 'Approved') $badge = 'warning text-dark';
-        if($row['status'] == 'Borrowed') $badge = 'primary';
-        if($row['status'] == 'Returned') $badge = 'success';
-        if($row['status'] == 'Cancelled') $badge = 'dark';
-?>
-    <tr>
-        <td class="fw-bold"><?php echo $row['control_no']; ?></td>
-        <td><?php echo $row['full_name']; ?></td>
-        <td><?php echo date('M d, Y h:i A', strtotime($row['date_requested'])); ?></td>
-        <td><span class="badge bg-<?php echo $badge; ?>"><?php echo $row['status']; ?></span></td>
-        <td class="text-center">
-            <a href="print_slip.php?control_no=<?php echo $row['control_no']; ?>" 
-               target="_blank" class="btn btn-outline-dark btn-sm">
-                <i class="bi bi-printer-fill"></i> Print Slip
-            </a>
-        </td>
-    </tr>
-<?php 
+        $status_color = 'success';
+        if ($row['status'] == 'Borrowed') $status_color = 'warning';
+        if ($row['status'] == 'Pending') $status_color = 'secondary';
+        if ($row['status'] == 'Lost') $status_color = 'danger';
+
+        $date = date('M d, Y', strtotime($row['date_requested']));
+        
+        // Truncate remarks for display
+        $remarks_display = !empty($row['admin_remarks']) ? substr($row['admin_remarks'], 0, 30) . '...' : '<span class="text-muted small">No remarks</span>';
+        $full_remarks = htmlspecialchars($row['admin_remarks']); // For the modal input
+
+        echo "<tr>
+                <td class='fw-bold text-primary'>{$row['control_no']}</td>
+                <td>{$row['full_name']}</td>
+                <td>{$date}</td>
+                <td><span class='badge bg-{$status_color}'>{$row['status']}</span></td>
+                
+                <td>
+                    {$remarks_display} 
+                    <a href='#' class='text-decoration-none small ms-1 btn-edit-remarks' 
+                       data-control='{$row['control_no']}' 
+                       data-remarks='{$full_remarks}'>
+                       <i class='bi bi-pencil-square text-secondary'></i>
+                    </a>
+                </td>
+
+                <td class='text-center'>
+                    <a href='print_slip.php?control_no={$row['control_no']}' target='_blank' class='btn btn-sm btn-outline-dark'>
+                        <i class='bi bi-printer'></i> Print
+                    </a>
+                </td>
+              </tr>";
     }
 }
 ?>

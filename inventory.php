@@ -21,8 +21,10 @@ while($c_row = mysqli_fetch_assoc($cat_res)) {
     $categories[] = $c_row['category'];
 }
 
-// 2. Build Tool Query (STRICTLY HIDE ARCHIVED)
-$sql = "SELECT * FROM tools WHERE status NOT IN ('Archived', 'Deleted', 'Lost')"; 
+// 2. Build Tool Query
+// 'Lost' items ARE included here so you can manage them.
+// 'Archived' and 'Deleted' are hidden.
+$sql = "SELECT * FROM tools WHERE status NOT IN ('Archived', 'Deleted')"; 
 
 if ($search != '') {
     $sql .= " AND (tool_name LIKE '%$search%' OR barcode LIKE '%$search%')";
@@ -149,6 +151,7 @@ $result = mysqli_query($conn, $sql);
                                     $status_color = 'success';
                                     if($row['status'] == 'Borrowed') $status_color = 'warning';
                                     if($row['status'] == 'Maintenance') $status_color = 'secondary';
+                                    if($row['status'] == 'Lost') $status_color = 'danger'; 
                             ?>
                                 <tr>
                                     <td class="ps-4 fw-bold font-monospace"><?php echo $row['barcode']; ?></td>
@@ -157,11 +160,19 @@ $result = mysqli_query($conn, $sql);
                                     <td><span class="badge bg-<?php echo $status_color; ?>"><?php echo $row['status']; ?></span></td>
                                     <td><?php echo date('M d, Y', strtotime($row['created_at'])); ?></td>
                                     <td class="text-end pe-4">
-                                        <a href="tool_action.php?delete_id=<?php echo $row['tool_id']; ?>" 
-                                           class="btn btn-sm btn-outline-danger"
-                                           onclick="return confirm('Move this tool to the Bin?');">
-                                            <i class="bi bi-trash"></i>
-                                        </a>
+                                        
+                                        <?php if ($row['status'] == 'Borrowed') { ?>
+                                            <button class="btn btn-sm btn-secondary disabled" title="Cannot delete active items">
+                                                <i class="bi bi-lock-fill"></i>
+                                            </button>
+                                        <?php } else { ?>
+                                            <a href="tool_action.php?delete_id=<?php echo $row['tool_id']; ?>" 
+                                               class="btn btn-sm btn-outline-danger"
+                                               onclick="return confirm('Move this tool to the Bin?');">
+                                                <i class="bi bi-trash"></i>
+                                            </a>
+                                        <?php } ?>
+
                                     </td>
                                 </tr>
                             <?php 
@@ -273,7 +284,6 @@ $result = mysqli_query($conn, $sql);
                             </thead>
                             <tbody>
                                 <?php 
-                                // Query specifically for 'Archived'
                                 $arch_sql = "SELECT * FROM tools WHERE status = 'Archived' ORDER BY tool_name ASC";
                                 $arch_res = mysqli_query($conn, $arch_sql);
 

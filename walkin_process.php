@@ -20,15 +20,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         exit();
     }
 
-    // --- FIX: ROBUST CONTROL NUMBER GENERATION ---
-    // Logic: Find the highest ID used today, and increment it.
+    // --- FIX: UNIFIED ROBUST CONTROL NUMBER GENERATION ---
+    // Logic: Find the highest ID used today (regardless of deletions) and increment it.
     
     $today_str = date('Y-m-d');
     
     // Get the very last transaction created today
-    // We order by transaction_id DESC to get the latest one
     $last_sql = "SELECT control_no FROM transactions 
-                 WHERE DATE(date_requested) = '$today_str' 
+                 WHERE control_no LIKE '$today_str-%' 
                  ORDER BY transaction_id DESC 
                  LIMIT 1";
                  
@@ -40,8 +39,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $last_row = mysqli_fetch_assoc($last_res);
         $last_control = $last_row['control_no'];
         
-        // Extract the sequence number (The part after the last dash)
-        // Format is YYYY-MM-DD-SEQ
         $parts = explode('-', $last_control);
         $last_seq = end($parts);
         
@@ -52,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     // Generate New Unique ID
     $control_no = $today_str . '-' . $next_sequence;
-    // ---------------------------------------------
+    // -----------------------------------------------------
 
     $success_count = 0;
 
@@ -74,6 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         while ($row = mysqli_fetch_assoc($result)) {
             $t_id = $row['tool_id'];
             
+            // Note: For Walk-in, status is 'Approved' immediately
             $insert = "INSERT INTO transactions 
                        (user_id, tool_id, borrow_date, return_date, status, control_no, subject, room_no, date_requested) 
                        VALUES 

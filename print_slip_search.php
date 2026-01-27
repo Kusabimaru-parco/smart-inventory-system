@@ -55,11 +55,11 @@ $search = isset($_GET['search']) ? $_GET['search'] : '';
                                 <th>Student Name</th>
                                 <th>Date Requested</th>
                                 <th>Status</th>
-                                <th class="text-center">Action</th>
+                                <th>Admin Remarks</th> <th class="text-center">Action</th>
                             </tr>
                         </thead>
                         <tbody id="resultsBody">
-                            </tbody>
+                        </tbody>
                     </table>
                 </div>
 
@@ -79,14 +79,33 @@ $search = isset($_GET['search']) ? $_GET['search'] : '';
         </div>
     </div>
 
+    <div class="modal fade" id="remarksModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Admin Remarks</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label fw-bold">Control No: <span id="modalControlNo" class="text-primary"></span></label>
+                    <textarea id="modalRemarksText" class="form-control" rows="4" placeholder="Enter remarks about tool condition, late return reasons, etc..."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-success" id="saveRemarksBtn">Save Remarks</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         $(document).ready(function(){
             let offset = 0;
             const limit = 25; 
-            let searchTerm = "<?php echo $search; ?>"; // Get search from PHP
+            let searchTerm = "<?php echo $search; ?>"; 
             let isLoading = false;
 
-            // REMOVED "if (searchTerm !== '')" -> NOW IT ALWAYS RUNS
             loadData();
 
             function loadData() {
@@ -105,10 +124,9 @@ $search = isset($_GET['search']) ? $_GET['search'] : '';
                     success: function(response) {
                         $('#loadingSpinner').hide();
                         
-                        // Check if empty
                         if($.trim(response) === "") {
                             if(offset === 0) {
-                                $('#resultsBody').html("<tr><td colspan='5' class='text-center py-4 text-muted'>No records found.</td></tr>");
+                                $('#resultsBody').html("<tr><td colspan='6' class='text-center py-4 text-muted'>No records found.</td></tr>");
                             } else {
                                 $('#endMessage').show();
                             }
@@ -126,9 +144,41 @@ $search = isset($_GET['search']) ? $_GET['search'] : '';
                 });
             }
 
-            // Click Handler
             $('#loadMoreBtn').click(function(){
                 loadData();
+            });
+
+            // --- MODAL LOGIC ---
+            // Open Modal and populate data
+            $(document).on('click', '.btn-edit-remarks', function() {
+                let controlNo = $(this).data('control');
+                let currentRemarks = $(this).data('remarks'); // Assuming you add data-remarks attribute in fetch script
+
+                $('#modalControlNo').text(controlNo);
+                $('#modalRemarksText').val(currentRemarks);
+                $('#remarksModal').modal('show');
+            });
+
+            // Save Remarks via AJAX
+            $('#saveRemarksBtn').click(function() {
+                let controlNo = $('#modalControlNo').text();
+                let remarks = $('#modalRemarksText').val();
+
+                $.ajax({
+                    url: 'update_remarks.php',
+                    type: 'POST',
+                    data: { control_no: controlNo, remarks: remarks },
+                    success: function(response) {
+                        if(response === 'Success') {
+                            alert('Remarks Saved!');
+                            $('#remarksModal').modal('hide');
+                            // Optional: Reload specific row or page to show update
+                            location.reload(); 
+                        } else {
+                            alert('Error saving: ' + response);
+                        }
+                    }
+                });
             });
         });
     </script>

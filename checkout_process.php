@@ -12,25 +12,37 @@ $subject = mysqli_real_escape_string($conn, $_POST['subject']);
 $room_no = mysqli_real_escape_string($conn, $_POST['room_no']);
 $return_date = mysqli_real_escape_string($conn, $_POST['return_date']);
 
-// --- 1. GENERATE SEQUENTIAL CONTROL NUMBER (YYYY-MM-DD-COUNT) ---
+// --- FIX: UNIFIED ROBUST CONTROL NUMBER GENERATION ---
+// Logic: Find the highest ID used today (regardless of deletions) and increment it.
 
-$today = date('Y-m-d');
+$today_str = date('Y-m-d');
 
-// Count how many UNIQUE requests (control numbers) exist for TODAY
-$count_sql = "SELECT COUNT(DISTINCT control_no) as daily_count 
-              FROM transactions 
-              WHERE DATE(date_requested) = '$today'";
+// Get the very last transaction created today based on the Control Number string pattern
+$last_sql = "SELECT control_no FROM transactions 
+             WHERE control_no LIKE '$today_str-%' 
+             ORDER BY transaction_id DESC 
+             LIMIT 1";
+             
+$last_res = mysqli_query($conn, $last_sql);
 
-$count_res = mysqli_query($conn, $count_sql);
-$count_row = mysqli_fetch_assoc($count_res);
+$next_sequence = 1; // Default if no transactions today
 
-// Increment by 1
-$next_sequence = $count_row['daily_count'] + 1;
+if (mysqli_num_rows($last_res) > 0) {
+    $last_row = mysqli_fetch_assoc($last_res);
+    $last_control = $last_row['control_no'];
+    
+    // Extract the sequence number (The part after the last dash)
+    $parts = explode('-', $last_control);
+    $last_seq = end($parts);
+    
+    if (is_numeric($last_seq)) {
+        $next_sequence = intval($last_seq) + 1;
+    }
+}
 
-// Format: 2026-01-27-1
-$control_no = $today . '-' . $next_sequence;
-
-// ---------------------------------------------------------------
+// Generate New Unique ID (e.g., 2026-01-27-5)
+$control_no = $today_str . '-' . $next_sequence;
+// -----------------------------------------------------
 
 $success_count = 0;
 
@@ -39,8 +51,7 @@ foreach ($_SESSION['cart'] as $tool_name => $details) {
     $qty_needed = intval($details['qty']);
     $safe_name = mysqli_real_escape_string($conn, $tool_name);
 
-    // 3. Find SPECIFIC available tool IDs for this name
-    // Logic: Get X tools that are NOT currently Pending/Approved/Borrowed
+    // 3. Find SPECIFIC available tool IDs
     $sql = "SELECT tool_id FROM tools 
             WHERE tool_name = '$safe_name' 
             AND status = 'Available' 
@@ -51,7 +62,7 @@ foreach ($_SESSION['cart'] as $tool_name => $details) {
     
     $result = mysqli_query($conn, $sql);
 
-    // 4. Create a Transaction for EACH found tool
+    // 4. Create Transactions
     while ($row = mysqli_fetch_assoc($result)) {
         $t_id = $row['tool_id'];
         
@@ -71,7 +82,6 @@ if ($success_count > 0) {
     unset($_SESSION['cart']);
     header("Location: dashboard.php?msg=Request Submitted! Control No: $control_no");
 } else {
-    // If tools ran out while browsing
     header("Location: student_catalog.php?error=Failed to process request. Items might be unavailable.");
 }
 ?>
